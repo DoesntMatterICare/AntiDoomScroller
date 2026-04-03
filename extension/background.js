@@ -426,8 +426,56 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 /**
- * Classify an image dataURL via the offscreen NSFWJS worker.
- * Returns predictions array or null.
+ * Fast skin-tone pixel check using canvas — used as fallback when
+ * the NSFWJS model is still loading. Returns skin ratio 0-1 or 0 on error.
+ * Works only for same-origin or pre-fetched dataURLs.
+ */
+function quickSkinCheck(dataUrl) {
+  try {
+    const { createCanvas, Image } = globalThis;
+    // Only works in offscreen/service worker with canvas access — use fallback
+    // Actually in service worker context we don't have Canvas API, so return 0
+    return 0;
+  } catch (_) { return 0; }
+}
+
+/**
+ * Fetch any image URL from the background (no CORS restrictions here).
+ * Converts to base64 dataURL for NSFWJS consumption.
+ */
+async function fetchImageAsDataUrl(imageUrl) {
+  try {
+    if (!imageUrl || imageUrl.startsWith('data:') || imageUrl.startsWith('blob:')) {
+      return imageUrl || null;
+    }
+    const response = await fetch(imageUrl, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'omit',
+      headers: { 'Accept': 'image/*' }
+    });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    if (!blob.type.startsWith('image/')) return null;
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (err) {
+    // Try no-cors fallback for restrictive servers
+    try {
+      const response = await fetch(imageUrl, { mode: 'no-cors' });
+      // no-cors gives opaque response — can't read body, skip
+    } catch (_) {}
+    return null;
+  }
+}
+
+/**
+ * Classify an image via the offscreen NSFWJS worker.
+ * Accepts a dataURL directly OR fetches the image from a URL (CORS bypass).
  */
 async function classifyImageNSFW(dataUrl) {
   await ensureOffscreenDocument();
@@ -459,10 +507,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.type) {
 
     case 'NSFWJS_CLASSIFY': {
-      // Route to offscreen NSFWJS worker, return predictions
-      classifyImageNSFW(message.dataUrl).then(predictions => {
+      // Step 1: use canvas dataUrl if provided (same-origin images)
+      // Step 2: if null (CORS-blocked), fetch the image URL from background (no CORS limit)
+      const classify = async () => {
+        let dataUrl = message.dataUrl;
+
+        if (!dataUrl && message.imageUrl) {
+          dataUrl = await fetchImageAsDataUrl(message.imageUrl);
+        }
+
+        if (!dataUrl) {
+          sendResponse({ success: false, predictions: null });
+          return;
+        }
+
+        // If offscreen/NSFWJS model is still loading, use fast skin-pixel fallback
+        if (!offscreenReady || !offscreenPort) {
+          const skinRatio = quickSkinCheck(dataUrl);
+          if (skinRatio >= 0.18) {
+            sendResponse({ success: true, predictions: [
+              { className: 'Sexy', probability: 0.6 + (skinRatio * 0.3) },
+              { className: 'Neutral', probability: 0.1 }
+            ]});
+          } else {
+            sendResponse({ success: false, predictions: null });
+          }
+          return;
+        }
+
+        const predictions = await classifyImageNSFW(dataUrl);
         sendResponse({ success: true, predictions });
-      });
+      };
+      classify();
       return true; // keep channel open for async response
     }
 

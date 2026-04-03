@@ -419,7 +419,7 @@
   const NSFW_SEXY_THRESHOLD   = 0.55;  // Sexy class (strict mode)
   const NSFW_HENTAI_THRESHOLD = 0.50;  // Hentai class
   const IMAGES_TO_BLOCK_PAGE  = 3;     // flagged images before page block
-  const MIN_IMAGE_DIMENSION   = 120;   // skip icons/avatars below this px
+  const MIN_IMAGE_DIMENSION   = 80;    // skip icons/avatars below this px
   const CANVAS_SIZE           = 224;   // NSFWJS expects 224x224 input
 
 
@@ -547,10 +547,20 @@
     processedImages.add(img);
 
     const doClassify = async () => {
-      const dataUrl = captureImageDataUrl(img);
-      if (!dataUrl) return; // CORS-blocked
+      // Always send the image src URL so the background can fetch it directly
+      // (bypasses CORS — background service worker has unrestricted network access)
+      const imageUrl = img.currentSrc || img.src || '';
+      if (!imageUrl || imageUrl.startsWith('chrome-extension://')) return;
+
+      // Also try canvas capture (works for same-origin or CORS-enabled images)
+      const dataUrl = captureImageDataUrl(img); // may be null for cross-origin
+
       try {
-        const response = await chrome.runtime.sendMessage({ type: 'NSFWJS_CLASSIFY', dataUrl });
+        const response = await chrome.runtime.sendMessage({
+          type: 'NSFWJS_CLASSIFY',
+          dataUrl,    // null if CORS-blocked, background will fetch via imageUrl
+          imageUrl    // always sent as fallback
+        });
         if (response?.predictions && isExplicitContent(response.predictions)) {
           blurExplicitImage(img, response.predictions);
         }
