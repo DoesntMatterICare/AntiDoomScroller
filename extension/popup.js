@@ -381,7 +381,8 @@ function renderSettings(settings) {
     'interruptions-toggle': 'showInterruptions',
     'breathing-toggle': 'showBreathing',
     'focus-toggle': 'showFocusTimer',
-    'redirect-toggle': 'showRedirect'
+    'redirect-toggle': 'showRedirect',
+    'noporn-toggle': 'showNoPorn'
   };
 
   Object.entries(toggleMap).forEach(([id, key]) => {
@@ -428,7 +429,8 @@ function setupEventListeners() {
     'interruptions-toggle': 'showInterruptions',
     'breathing-toggle': 'showBreathing',
     'focus-toggle': 'showFocusTimer',
-    'redirect-toggle': 'showRedirect'
+    'redirect-toggle': 'showRedirect',
+    'noporn-toggle': 'showNoPorn'
   };
   Object.entries(toggleMap).forEach(([id, key]) => {
     const el = document.getElementById(id);

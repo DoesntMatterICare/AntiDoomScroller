@@ -701,6 +701,12 @@ input:checked + .toggle-slider:before { background: #fff; transform: translateX(
 }
 .setting-item:last-child { border-bottom: none; }
 
+/* No-porn setting row has a sub-label */
+.noporn-row { align-items: flex-start; gap: 12px; }
+.noporn-row .toggle-switch { margin-top: 2px; flex-shrink: 0; }
+.setting-main-label { display: block; font-size: 12px; color: var(--text); margin-bottom: 3px; }
+.setting-sub-label { display: block; font-size: 10px; color: var(--text-muted); line-height: 1.5; max-width: 240px; }
+
 .intensity-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

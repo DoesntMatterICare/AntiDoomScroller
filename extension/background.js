@@ -74,6 +74,7 @@ chrome.runtime.onInstalled.addListener(async () => {
       showBreathing: true,
       showFocusTimer: true,
       showRedirect: true,
+      showNoPorn: true,
       interventionIntensity: 'medium',
       cleanDayThreshold: 30,
       customDoomSites: [],

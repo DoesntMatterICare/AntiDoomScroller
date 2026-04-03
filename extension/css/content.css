@@ -523,7 +523,189 @@
 .gap-text { color: var(--doom-text-muted); font-size: 10px; line-height: 1.5; }
 
 /* ============================================
-   KEYFRAMES
+   NO-PORN SCANNER — Blur & Block Styles
+   ============================================ */
+
+/* Blurred image */
+.dg-explicit-blurred {
+  filter: blur(22px) !important;
+  transition: filter 0.35s ease !important;
+  pointer-events: none;
+}
+.dg-explicit-revealed {
+  filter: none !important;
+  transition: filter 0.3s ease !important;
+}
+
+/* Wrapper that holds the image + label overlay */
+.dg-blur-wrapper {
+  position: relative !important;
+  display: inline-block !important;
+  overflow: hidden !important;
+  max-width: 100% !important;
+  border: 1px solid rgba(220,38,38,0.35) !important;
+  border-radius: 6px !important;
+}
+
+/* Label floating over the blurred image */
+.dg-blur-label {
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  background: rgba(0,0,0,0.72) !important;
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+  padding: 12px !important;
+  text-align: center !important;
+}
+
+.dg-blur-icon { color: #dc2626 !important; opacity: 0.9 !important; }
+
+.dg-blur-text {
+  color: #e0e0e0 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  font-family: 'Inter', -apple-system, sans-serif !important;
+  letter-spacing: 0.3px !important;
+}
+
+.dg-blur-reveal {
+  background: transparent !important;
+  border: 1px solid rgba(220,38,38,0.5) !important;
+  color: #dc2626 !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  padding: 4px 12px !important;
+  border-radius: 5px !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  font-family: 'Inter', -apple-system, sans-serif !important;
+}
+.dg-blur-reveal:hover {
+  background: rgba(220,38,38,0.15) !important;
+  border-color: #dc2626 !important;
+}
+
+/* ============================================
+   PAGE BLOCK OVERLAY
+   ============================================ */
+#dg-porn-block-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(0,0,0,0.97) !important;
+  z-index: 2147483647 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-family: 'Inter', -apple-system, sans-serif !important;
+  animation: dgFadeIn 0.4s ease !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.dg-porn-block-modal {
+  background: #0e0e0e !important;
+  border: 1px solid rgba(220,38,38,0.5) !important;
+  border-radius: 20px !important;
+  padding: 40px 36px !important;
+  max-width: 440px !important;
+  width: 90% !important;
+  text-align: center !important;
+  box-shadow: 0 0 80px rgba(220,38,38,0.2), 0 25px 50px rgba(0,0,0,0.8) !important;
+  animation: dgModalSlide 0.4s ease !important;
+}
+
+.dg-porn-block-icon { margin-bottom: 18px !important; }
+
+.dg-porn-block-title {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: #f1f1f1 !important;
+  margin-bottom: 12px !important;
+}
+
+.dg-porn-block-desc {
+  font-size: 14px !important;
+  color: #888 !important;
+  line-height: 1.7 !important;
+  margin-bottom: 22px !important;
+}
+
+.dg-porn-block-stats {
+  display: flex !important;
+  justify-content: center !important;
+  gap: 32px !important;
+  background: rgba(220,38,38,0.06) !important;
+  border: 1px solid rgba(220,38,38,0.2) !important;
+  border-radius: 10px !important;
+  padding: 16px !important;
+  margin-bottom: 24px !important;
+}
+
+.dg-porn-stat { text-align: center !important; }
+
+.dg-ps-val {
+  display: block !important;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  color: #dc2626 !important;
+  line-height: 1 !important;
+  margin-bottom: 4px !important;
+  filter: drop-shadow(0 0 8px rgba(220,38,38,0.5)) !important;
+}
+
+.dg-ps-lbl {
+  font-size: 10px !important;
+  color: #666 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+.dg-porn-block-actions {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  margin-bottom: 18px !important;
+}
+
+.dg-pba-leave {
+  background: #dc2626 !important;
+  border: none !important;
+  color: #fff !important;
+  padding: 14px !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: background 0.2s !important;
+  font-family: 'Inter', -apple-system, sans-serif !important;
+}
+.dg-pba-leave:hover { background: #b91c1c !important; }
+
+.dg-pba-continue {
+  background: transparent !important;
+  border: 1px solid #2a2a2a !important;
+  color: #666 !important;
+  padding: 12px !important;
+  border-radius: 10px !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  font-family: 'Inter', -apple-system, sans-serif !important;
+}
+.dg-pba-continue:hover { border-color: #3a3a3a !important; color: #999 !important; }
+
+.dg-porn-block-tip {
+  font-size: 10px !important;
+  color: #444 !important;
+  padding-top: 4px !important;
+}
+
+/* ============================================
+   KEYFRAMES (ensure present even if content.css is injected independently)
    ============================================ */
 @keyframes dgFadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dgFadeOut { from { opacity: 1; } to { opacity: 0; } }
