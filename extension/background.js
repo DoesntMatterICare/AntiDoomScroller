@@ -104,6 +104,8 @@ chrome.runtime.onInstalled.addListener(async () => {
     }
   });
   console.log('[DoomGuard v2] Installed');
+  // Pre-warm the NSFWJS offscreen document
+  setTimeout(() => ensureOffscreenDocument().catch(() => {}), 2000);
 });
 
 // Load custom doom sites on startup
@@ -359,12 +361,110 @@ async function updateHourlyActivity(minutesDelta) {
 }
 
 // ============================================
+// NSFWJS OFFSCREEN DOCUMENT MANAGEMENT
+// ============================================
+let offscreenPort = null;
+let offscreenReady = false;
+let offscreenCreating = false;
+const nsfwPendingRequests = new Map();
+let nsfwRequestCounter = 0;
+
+async function ensureOffscreenDocument() {
+  // Check if already exists
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [chrome.runtime.getURL('offscreen.html')]
+  }).catch(() => []);
+
+  if (contexts.length > 0 && offscreenPort) return;
+
+  if (offscreenCreating) {
+    // Wait for creation to finish
+    await new Promise(resolve => setTimeout(resolve, 800));
+    return;
+  }
+
+  offscreenCreating = true;
+  try {
+    if (contexts.length === 0) {
+      await chrome.offscreen.createDocument({
+        url: chrome.runtime.getURL('offscreen.html'),
+        reasons: ['DOM_SCRAPING'],
+        justification: 'NSFWJS image classification for DoomGuard'
+      });
+    }
+    // Wait for the offscreen doc to connect via port
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  } catch (err) {
+    console.warn('[DoomGuard] Offscreen create error:', err.message);
+  } finally {
+    offscreenCreating = false;
+  }
+}
+
+// Handle port connection from offscreen.js
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === 'dg-nsfwjs-port') {
+    offscreenPort = port;
+    offscreenReady = true;
+    console.log('[DoomGuard] NSFWJS offscreen port connected');
+
+    port.onMessage.addListener(({ requestId, predictions }) => {
+      const resolve = nsfwPendingRequests.get(requestId);
+      if (resolve) {
+        resolve(predictions);
+        nsfwPendingRequests.delete(requestId);
+      }
+    });
+
+    port.onDisconnect.addListener(() => {
+      offscreenPort = null;
+      offscreenReady = false;
+      console.log('[DoomGuard] NSFWJS offscreen port disconnected');
+    });
+  }
+});
+
+/**
+ * Classify an image dataURL via the offscreen NSFWJS worker.
+ * Returns predictions array or null.
+ */
+async function classifyImageNSFW(dataUrl) {
+  await ensureOffscreenDocument();
+  if (!offscreenPort) {
+    console.warn('[DoomGuard] No offscreen port available');
+    return null;
+  }
+
+  const requestId = `nsfw-${++nsfwRequestCounter}`;
+  return new Promise((resolve) => {
+    nsfwPendingRequests.set(requestId, resolve);
+    offscreenPort.postMessage({ requestId, dataUrl });
+    // Timeout after 8 seconds
+    setTimeout(() => {
+      if (nsfwPendingRequests.has(requestId)) {
+        nsfwPendingRequests.delete(requestId);
+        resolve(null);
+      }
+    }, 8000);
+  });
+}
+
+// ============================================
 // MESSAGE HANDLERS
 // ============================================
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const tabId = sender.tab?.id;
 
   switch (message.type) {
+
+    case 'NSFWJS_CLASSIFY': {
+      // Route to offscreen NSFWJS worker, return predictions
+      classifyImageNSFW(message.dataUrl).then(predictions => {
+        sendResponse({ success: true, predictions });
+      });
+      return true; // keep channel open for async response
+    }
 
     case 'DOOM_ACTIVITY': {
       globalSessionData.totalScrollCount += message.scrollCount || 0;

@@ -409,91 +409,55 @@
   }
 
   // ============================================
-  // NO-PORN SCANNER — Skin pixel color analysis
-  // Zero AI, zero API. Pure RGB math on canvas pixels.
+  // NO-PORN SCANNER — Powered by NSFWJS (local model, zero internet)
+  // MobileNetV2 runs in offscreen document via Chrome Offscreen API.
+  // Classifies: Porn / Sexy / Hentai / Neutral / Drawing
   // ============================================
 
   // STRICT thresholds
-  const SKIN_RATIO_BLUR     = 0.18;  // 18%+ skin pixels → blur image
-  const SKIN_RATIO_INSTANT  = 0.50;  // 50%+ → immediate page block
-  const IMAGES_TO_BLOCK     = 3;     // 3+ blurred images → page block
-  const MIN_IMAGE_SIZE      = 120;   // ignore icons/avatars smaller than this
-  const SAMPLE_SIZE         = 80;    // downsample to 80×80 for analysis
+  const NSFW_PORN_THRESHOLD   = 0.50;  // Porn class
+  const NSFW_SEXY_THRESHOLD   = 0.55;  // Sexy class (strict mode)
+  const NSFW_HENTAI_THRESHOLD = 0.50;  // Hentai class
+  const IMAGES_TO_BLOCK_PAGE  = 3;     // flagged images before page block
+  const MIN_IMAGE_DIMENSION   = 120;   // skip icons/avatars below this px
+  const CANVAS_SIZE           = 224;   // NSFWJS expects 224x224 input
 
-  /**
-   * Multi-rule skin tone detection (fair → dark skin, any ethnicity).
-   * Returns true if the pixel is likely human skin.
-   */
-  function isSkinPixel(r, g, b) {
-    // Avoid pure grays, whites, blacks, and near-neutral tones (walls, sand, etc.)
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const diff = max - min;
-    if (diff < 10) return false;                    // too gray / near-neutral
-    if (r < 30 && g < 30 && b < 30) return false;  // too dark/black
 
-    // Rule 1 — Kovac (works well for fair-medium skin)
-    const rule1 = r > 95 && g > 40 && b > 20 && diff > 15 &&
-                  Math.abs(r - g) > 15 && r > g && r > b;
-
-    // Rule 2 — Peer (medium-tan skin with pinkish tones)
-    const rule2 = r > 200 && g > 148 && b > 100 &&
-                  r > g && g > b && (r - b) > 40;
-
-    // Rule 3 — Jordan extended (darker skin / bronze / deep brown)
-    const rule3 = r > 60 && g > 40 && b > 20 &&
-                  r > b && (r - b) > 20 && r > g &&
-                  (r - g) < 90; // prevent fire/orange confusion
-
-    // Rule 4 — HSV guard for warm flesh tones (H: 0–38°, S: 20–68%, V > 35%)
-    const vNorm = max / 255;
-    const sNorm = max === 0 ? 0 : diff / max;
-    let hNorm = 0;
-    if (diff > 0) {
-      if (max === r) hNorm = 60 * (((g - b) / diff) % 6);
-      else if (max === g) hNorm = 60 * ((b - r) / diff + 2);
-      else hNorm = 60 * ((r - g) / diff + 4);
-      if (hNorm < 0) hNorm += 360;
-    }
-    const rule4 = hNorm >= 0 && hNorm <= 38 && sNorm >= 0.20 && sNorm <= 0.68 && vNorm >= 0.35;
-
-    return (rule1 || rule2 || rule3 || rule4);
-  }
-
-  /**
-   * Draw image to an offscreen canvas and compute skin pixel ratio.
-   * Returns 0–1 (0 = no skin, 1 = entirely skin).
-   * Returns -1 on CORS/security error (image skipped).
-   */
-  function computeSkinRatio(imgEl) {
+  /** Capture image to 224x224 canvas and return JPEG dataURL. Returns null on CORS error. */
+  function captureImageDataUrl(img) {
     try {
       const canvas = document.createElement('canvas');
-      canvas.width  = SAMPLE_SIZE;
-      canvas.height = SAMPLE_SIZE;
+      canvas.width  = CANVAS_SIZE;
+      canvas.height = CANVAS_SIZE;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(imgEl, 0, 0, SAMPLE_SIZE, SAMPLE_SIZE);
-      const { data } = ctx.getImageData(0, 0, SAMPLE_SIZE, SAMPLE_SIZE);
-      let skinPx = 0, totalPx = 0;
-      for (let i = 0; i < data.length; i += 4) {
-        if (data[i + 3] < 100) continue; // skip transparent pixels
-        totalPx++;
-        if (isSkinPixel(data[i], data[i + 1], data[i + 2])) skinPx++;
-      }
-      return totalPx > 0 ? skinPx / totalPx : 0;
+      ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      return canvas.toDataURL('image/jpeg', 0.75);
     } catch (_) {
-      return -1; // SecurityError: cross-origin tainted canvas
+      return null; // SecurityError: cross-origin tainted canvas
     }
   }
 
-  /** Wrap an image element with a blur + "hidden" label */
-  function blurExplicitImage(img, ratio) {
+  /** Check NSFWJS predictions against strict thresholds */
+  function isExplicitContent(predictions) {
+    if (!Array.isArray(predictions)) return false;
+    const p = {};
+    predictions.forEach(x => { p[x.className] = x.probability; });
+    return (p['Porn']   || 0) >= NSFW_PORN_THRESHOLD  ||
+           (p['Sexy']   || 0) >= NSFW_SEXY_THRESHOLD  ||
+           (p['Hentai'] || 0) >= NSFW_HENTAI_THRESHOLD;
+  }
+
+  /** Wrap image with blur overlay + reveal button */
+  function blurExplicitImage(img, predictions) {
     if (img.dataset.dgBlurred) return;
     img.dataset.dgBlurred = 'true';
-
-    // Apply CSS blur immediately
     img.classList.add('dg-explicit-blurred');
 
-    // Build wrapper overlay with label + reveal button
+    const p = {};
+    (predictions || []).forEach(x => { p[x.className] = x.probability; });
+    const topClass = ['Porn','Sexy','Hentai'].find(c => (p[c] || 0) > 0.3) || 'Explicit';
+    const confidence = Math.round(Math.max(p['Porn']||0, p['Sexy']||0, p['Hentai']||0) * 100);
+
     const wrapper = document.createElement('div');
     wrapper.className = 'dg-blur-wrapper';
 
@@ -501,13 +465,13 @@
     label.className = 'dg-blur-label';
     label.innerHTML = `
       <span class="dg-blur-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
           <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
           <line x1="1" y1="1" x2="23" y2="23"/>
         </svg>
       </span>
-      <span class="dg-blur-text">Explicit content hidden</span>
+      <span class="dg-blur-text">${topClass} content — ${confidence}% confidence</span>
       <button class="dg-blur-reveal" data-reveal="true">Show anyway</button>`;
 
     label.querySelector('[data-reveal]').addEventListener('click', (e) => {
@@ -518,7 +482,6 @@
       wrapper.classList.remove('dg-blur-wrapper');
     });
 
-    // Insert wrapper around the image
     if (img.parentNode) {
       const parent = img.parentNode;
       const next = img.nextSibling;
@@ -528,23 +491,13 @@
     }
 
     flaggedImagesCount++;
-
-    // Immediate block for very revealing images
-    if (ratio >= SKIN_RATIO_INSTANT) {
-      showPageBlockOverlay(true);
-      return;
-    }
-    // Threshold-based block
-    if (flaggedImagesCount >= IMAGES_TO_BLOCK) {
-      showPageBlockOverlay(false);
-    }
+    if (flaggedImagesCount >= IMAGES_TO_BLOCK_PAGE) showPageBlockOverlay();
   }
 
-  /** Full-page block overlay */
-  function showPageBlockOverlay(immediate) {
+  /** Full-page warning block overlay */
+  function showPageBlockOverlay() {
     if (pageBlockShown) return;
     pageBlockShown = true;
-
     const overlay = document.createElement('div');
     overlay.id = 'dg-porn-block-overlay';
     overlay.innerHTML = `
@@ -557,68 +510,57 @@
         </div>
         <h2 class="dg-porn-block-title">Explicit Content Detected</h2>
         <p class="dg-porn-block-desc">
-          ${immediate
-            ? 'A highly explicit image was found on this page.'
-            : `${flaggedImagesCount} image${flaggedImagesCount > 1 ? 's' : ''} with significant skin exposure ${flaggedImagesCount > 1 ? 'were' : 'was'} found.`}
-          <br>All flagged images have been blurred.
+          NSFWJS flagged <strong>${flaggedImagesCount}</strong> image${flaggedImagesCount>1?'s':''} on this page.
+          <br>All flagged images have been blurred automatically.
         </p>
         <div class="dg-porn-block-stats">
-          <div class="dg-porn-stat"><span class="dg-ps-val">${flaggedImagesCount}</span><span class="dg-ps-lbl">images blurred</span></div>
-          <div class="dg-porn-stat"><span class="dg-ps-val">Strict</span><span class="dg-ps-lbl">sensitivity</span></div>
+          <div class="dg-porn-stat"><span class="dg-ps-val">${flaggedImagesCount}</span><span class="dg-ps-lbl">flagged</span></div>
+          <div class="dg-porn-stat"><span class="dg-ps-val">~90%</span><span class="dg-ps-lbl">accuracy</span></div>
+          <div class="dg-porn-stat"><span class="dg-ps-val">Local</span><span class="dg-ps-lbl">no API</span></div>
         </div>
         <div class="dg-porn-block-actions">
           <button class="dg-pba-leave" id="dg-pb-leave">Leave This Page</button>
           <button class="dg-pba-continue" id="dg-pb-continue">Continue (images stay blurred)</button>
         </div>
-        <div class="dg-porn-block-tip">Tip: Remove this site from your doom list in DoomGuard Settings</div>
+        <div class="dg-porn-block-tip">Powered by NSFWJS MobileNetV2 — 100% local, zero data sent anywhere</div>
       </div>`;
     document.body.appendChild(overlay);
-
     document.getElementById('dg-pb-leave').addEventListener('click', () => {
       try { history.back(); } catch (_) { window.close(); }
     });
-    document.getElementById('dg-pb-continue').addEventListener('click', () => {
-      overlay.remove();
-      // Images remain blurred
-    });
+    document.getElementById('dg-pb-continue').addEventListener('click', () => overlay.remove());
   }
 
-  /**
-   * Process a single image element: measure skin ratio, blur if over threshold.
-   * Skips tiny images, already-processed images, and CORS-inaccessible images.
-   */
-  function processImageForExplicit(img) {
+  /** Classify one image via background -> NSFWJS offscreen pipeline */
+  async function classifyImageWithNSFWJS(img) {
     if (!noPornEnabled) return;
     if (processedImages.has(img)) return;
     if (img.dataset.dgBlurred || img.dataset.dgSkipped) return;
 
-    // Skip too-small images (icons, avatars, logos)
     const w = img.naturalWidth  || img.width  || 0;
     const h = img.naturalHeight || img.height || 0;
-    if (w < MIN_IMAGE_SIZE || h < MIN_IMAGE_SIZE) {
+    if (w < MIN_IMAGE_DIMENSION || h < MIN_IMAGE_DIMENSION) {
       img.dataset.dgSkipped = 'size';
       processedImages.add(img);
       return;
     }
-
     processedImages.add(img);
 
-    const doAnalysis = () => {
-      const ratio = computeSkinRatio(img);
-      if (ratio < 0) return; // CORS blocked — skip silently
-      if (ratio >= SKIN_RATIO_BLUR) {
-        blurExplicitImage(img, ratio);
-      }
+    const doClassify = async () => {
+      const dataUrl = captureImageDataUrl(img);
+      if (!dataUrl) return; // CORS-blocked
+      try {
+        const response = await chrome.runtime.sendMessage({ type: 'NSFWJS_CLASSIFY', dataUrl });
+        if (response?.predictions && isExplicitContent(response.predictions)) {
+          blurExplicitImage(img, response.predictions);
+        }
+      } catch (_) {}
     };
 
-    if (img.complete && img.naturalWidth > 0) {
-      doAnalysis();
-    } else {
-      img.addEventListener('load', doAnalysis, { once: true });
-    }
+    if (img.complete && img.naturalWidth > 0) doClassify();
+    else img.addEventListener('load', doClassify, { once: true });
   }
 
-  /** Batch-scan all images on the page (throttled via queue) */
   function scanAllImagesNow() {
     if (!noPornEnabled) return;
     document.querySelectorAll('img').forEach(img => {
@@ -630,33 +572,25 @@
   function drainScanQueue() {
     if (scanRunning || scanQueue.length === 0) return;
     scanRunning = true;
-    const BATCH = 6;
-    const process = () => {
-      const batch = scanQueue.splice(0, BATCH);
-      batch.forEach(processImageForExplicit);
-      if (scanQueue.length > 0) {
-        setTimeout(process, 80); // yield to browser between batches
-      } else {
-        scanRunning = false;
-      }
+    const processBatch = () => {
+      scanQueue.splice(0, 4).forEach(img => classifyImageWithNSFWJS(img));
+      if (scanQueue.length > 0) setTimeout(processBatch, 300);
+      else scanRunning = false;
     };
-    setTimeout(process, 50);
+    setTimeout(processBatch, 150);
   }
 
-  /** Watch for newly added images (infinite scroll, lazy-load) */
   function startPornScanObserver() {
     if (pornScanObserver) return;
     pornScanObserver = new MutationObserver((mutations) => {
-      mutations.forEach(m => {
-        m.addedNodes.forEach(node => {
-          if (node.nodeName === 'IMG') {
-            scanQueue.push(node);
-          } else if (node.nodeType === 1) {
-            node.querySelectorAll?.('img').forEach(img => scanQueue.push(img));
-          }
-        });
-      });
-      drainScanQueue();
+      let added = false;
+      mutations.forEach(m => m.addedNodes.forEach(node => {
+        if (node.nodeName === 'IMG') { scanQueue.push(node); added = true; }
+        else if (node.nodeType === 1) {
+          node.querySelectorAll?.('img').forEach(img => { scanQueue.push(img); added = true; });
+        }
+      }));
+      if (added) drainScanQueue();
     });
     pornScanObserver.observe(document.documentElement, { childList: true, subtree: true });
   }
@@ -664,9 +598,9 @@
   /** Public init — called from main init() when setting is on */
   function initNoPornScanner() {
     noPornEnabled = true;
-    // Initial scan after page settles
-    setTimeout(scanAllImagesNow, 800);
-    setTimeout(scanAllImagesNow, 2500); // second pass for lazy-loaded images
+    setTimeout(scanAllImagesNow, 1000);
+    setTimeout(scanAllImagesNow, 3000);
+    setTimeout(scanAllImagesNow, 7000);
     startPornScanObserver();
   }
 

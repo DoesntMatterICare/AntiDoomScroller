@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>DoomGuard NSFWJS Worker</title></head>
+<body>
+<!-- Load model data FIRST (sets window.model + window.group1_shard1of1) -->
+<script src="model/mobilenet_v2/model.min.js"></script>
+<script src="model/mobilenet_v2/group1-shard1of1.min.js"></script>
+<!-- Then TF.js + NSFWJS -->
+<script src="libs/tf.min.js"></script>
+<script src="libs/nsfwjs.min.js"></script>
+<!-- Our worker logic -->
+<script src="offscreen.js"></script>
+</body>
+</html>
