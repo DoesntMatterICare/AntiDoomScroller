@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DoomGuard – Options</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0a0a0a; --surface: #141414; --surface-2: #1c1c1c;
+      --border: #2a2a2a; --text: #e0e0e0; --muted: #7a7a7a;
+      --red: #dc2626; --green: #16a34a; --orange: #ea580c;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, sans-serif; font-size: 14px; min-height: 100vh; }
+    .container { max-width: 680px; margin: 0 auto; padding: 40px 24px; }
+    .page-header { margin-bottom: 36px; }
+    .page-header h1 { font-size: 28px; font-weight: 800; color: var(--red); margin-bottom: 6px; }
+    .page-header p { color: var(--muted); font-size: 14px; }
+    .section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 18px; }
+    .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-info h3 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+    .setting-info p { font-size: 12px; color: var(--muted); max-width: 400px; line-height: 1.5; }
+    .toggle-switch { position: relative; display: inline-block; width: 48px; height: 26px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; inset: 0; background: var(--border); border-radius: 26px; transition: 0.3s; }
+    .toggle-slider:before { content: ''; position: absolute; height: 20px; width: 20px; left: 3px; bottom: 3px; background: var(--muted); border-radius: 50%; transition: 0.3s; }
+    input:checked + .toggle-slider { background: var(--red); }
+    input:checked + .toggle-slider:before { background: #fff; transform: translateX(22px); }
+    .btn { padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: var(--red); border: none; color: #fff; }
+    .btn-primary:hover { background: #b91c1c; }
+    .btn-danger { background: transparent; border: 1px solid rgba(220,38,38,0.4); color: var(--red); }
+    .btn-danger:hover { background: rgba(220,38,38,0.1); }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+    .btn-ghost:hover { border-color: #3a3a3a; color: var(--text); }
+    select { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 13px; outline: none; }
+    select:focus { border-color: var(--red); }
+    input[type="number"], input[type="text"] { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 13px; outline: none; }
+    input[type="number"]:focus, input[type="text"]:focus { border-color: var(--red); }
+    .badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-top: 4px; }
+    .badge-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+    .badge-card.earned { border-color: rgba(220,38,38,0.4); background: rgba(220,38,38,0.06); }
+    .badge-card-icon { font-size: 11px; font-weight: 900; background: rgba(220,38,38,0.1); color: var(--red); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+    .badge-card.earned .badge-card-icon { box-shadow: 0 0 12px rgba(220,38,38,0.3); }
+    .badge-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+    .badge-card p { font-size: 11px; color: var(--muted); line-height: 1.4; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .stat-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+    .stat-card .big { font-size: 32px; font-weight: 800; color: var(--red); display: block; }
+    .stat-card .lbl { font-size: 11px; color: var(--muted); display: block; margin-top: 4px; }
+    .footer { text-align: center; color: var(--muted); font-size: 11px; padding: 20px 0 8px; }
+    #save-success { color: var(--green); font-size: 12px; display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="page-header">
+      <h1>DoomGuard Settings</h1>
+      <p>Advanced configuration for your anti-scroll engine</p>
+    </div>
+
+    <!-- Lifetime Stats -->
+    <div class="section">
+      <div class="section-title">Lifetime Stats</div>
+      <div class="stats-grid" id="lifetime-stats">
+        <div class="stat-card"><span class="big" id="ls-streak">0</span><span class="lbl">Longest Streak</span></div>
+        <div class="stat-card"><span class="big" id="ls-breath">0</span><span class="lbl">Breathe Sessions</span></div>
+        <div class="stat-card"><span class="big" id="ls-focus">0</span><span class="lbl">Focus Sessions</span></div>
+      </div>
+    </div>
+
+    <!-- Detection Settings -->
+    <div class="section">
+      <div class="section-title">Detection Settings</div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <h3>Clean Day Threshold</h3>
+          <p>Days with fewer doom-minutes than this count as "clean" for your streak.</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="number" id="opt-threshold" value="30" min="5" max="120" style="width:70px;text-align:center">
+          <span style="color:var(--muted);font-size:12px">min</span>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <h3>Redirect After</h3>
+          <p>Show productive site suggestions after X minutes of doom scrolling.</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="number" id="opt-redirect-after" value="20" min="5" max="60" style="width:70px;text-align:center">
+          <span style="color:var(--muted);font-size:12px">min</span>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <h3>Intervention Intensity</h3>
+          <p>How frequently feed interruptions appear.</p>
+        </div>
+        <select id="opt-intensity">
+          <option value="light">Light (every 8th post)</option>
+          <option value="medium" selected>Medium (every 5th post)</option>
+          <option value="heavy">Heavy (every 3rd post)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Features Toggle -->
+    <div class="section">
+      <div class="section-title">Feature Toggles</div>
+      <div class="setting-row">
+        <div class="setting-info"><h3>Intent Gate</h3><p>Ask why you're visiting before allowing access.</p></div>
+        <label class="toggle-switch"><input type="checkbox" id="opt-intent-gate" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info"><h3>Loss Meter HUD</h3><p>Floating overlay showing real-time doom stats while browsing.</p></div>
+        <label class="toggle-switch"><input type="checkbox" id="opt-loss-meter" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info"><h3>Feed Interruptions</h3><p>Inject awareness messages into social media feeds.</p></div>
+        <label class="toggle-switch"><input type="checkbox" id="opt-interruptions" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info"><h3>Breathing Exercises</h3><p>Offer 4-7-8 breathing sessions to reset focus.</p></div>
+        <label class="toggle-switch"><input type="checkbox" id="opt-breathing" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info"><h3>Focus Timer</h3><p>Offer Pomodoro sessions after extended doom sessions.</p></div>
+        <label class="toggle-switch"><input type="checkbox" id="opt-focus-timer" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info"><h3>Redirect Suggestions</h3><p>Suggest productive alternatives after long sessions.</p></div>
+        <label class="toggle-switch"><input type="checkbox" id="opt-redirect" checked><span class="toggle-slider"></span></label>
+      </div>
+    </div>
+
+    <!-- Badges earned -->
+    <div class="section">
+      <div class="section-title">Achievements</div>
+      <div class="badge-grid" id="badge-grid"><!-- Inserted by JS --></div>
+    </div>
+
+    <!-- Data Management -->
+    <div class="section">
+      <div class="section-title">Data Management</div>
+      <div class="setting-row">
+        <div class="setting-info"><h3>Export Statistics</h3><p>Download your doom data as JSON.</p></div>
+        <button class="btn btn-ghost" id="export-btn">Export JSON</button>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info"><h3>Reset All Data</h3><p>Permanently delete all stats, streak, and badges.</p></div>
+        <button class="btn btn-danger" id="reset-all-btn">Reset Everything</button>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:24px;display:flex;gap:12px;justify-content:center">
+      <button class="btn btn-primary" id="save-btn">Save Settings</button>
+      <span id="save-success">Saved!</span>
+    </div>
+
+    <div class="footer">DoomGuard v2.0 &nbsp;·&nbsp; Take back your time</div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

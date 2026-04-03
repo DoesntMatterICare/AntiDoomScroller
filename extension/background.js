@@ -1,0 +1,669 @@
+// DoomGuard Background Service Worker v2 - Enhanced Behavior Analysis Engine
+
+// ============================================
+// DOOM SITES CONFIG
+// ============================================
+const DEFAULT_DOOM_SITES = [
+  'reddit.com', 'youtube.com', 'twitter.com', 'x.com',
+  'instagram.com', 'tiktok.com', 'facebook.com',
+  'linkedin.com', 'pinterest.com', 'twitch.tv',
+  'snapchat.com', 'threads.net'
+];
+
+const SITE_CATEGORIES = {
+  'youtube.com': 'video', 'tiktok.com': 'short-form', 'instagram.com': 'short-form',
+  'snapchat.com': 'short-form', 'twitch.tv': 'streaming', 'reddit.com': 'feed',
+  'twitter.com': 'feed', 'x.com': 'feed', 'threads.net': 'feed',
+  'facebook.com': 'feed', 'linkedin.com': 'feed', 'pinterest.com': 'visual'
+};
+
+// ============================================
+// BADGE DEFINITIONS
+// ============================================
+const BADGE_DEFS = [
+  { id: 'first_clean',  name: 'First Step',     desc: 'First clean day under 30min',   icon: 'V'  },
+  { id: 'streak_3',     name: 'Streak Starter',  desc: '3-day clean streak',            icon: '3x' },
+  { id: 'streak_7',     name: 'Week Warrior',    desc: '7-day clean streak',            icon: '7x' },
+  { id: 'streak_30',    name: 'Month Master',    desc: '30-day clean streak',           icon: '30' },
+  { id: 'quick_check',  name: 'Quick Check',     desc: 'Session under 5 minutes',       icon: 'QC' },
+  { id: 'early_bird',   name: 'Early Bird',      desc: 'No doom before 9am (5 days)',   icon: 'EB' },
+  { id: 'night_free',   name: 'Night Guardian',  desc: 'No doom after 10pm (5 days)',   icon: 'NG' },
+  { id: 'breath_5',     name: 'Breather',        desc: '5 breathing sessions done',     icon: 'BR' },
+  { id: 'breath_25',    name: 'Breath Master',   desc: '25 breathing sessions done',    icon: 'BM' },
+  { id: 'focus_5',      name: 'Focused',         desc: '5 Pomodoro sessions completed', icon: 'FO' },
+  { id: 'intent_50',    name: 'Intentional',     desc: 'Intent gate used 50 times',     icon: 'IN' },
+  { id: 'low_score',    name: 'Mindful',         desc: 'Doom score below 5 all day',    icon: 'MS' },
+];
+
+// ============================================
+// GLOBAL PERSISTENT SESSION STATE
+// ============================================
+let globalDoomScore = 0;
+let globalSessionData = {
+  totalScrollCount: 0,
+  totalClickCount: 0,
+  totalTabSwitches: 0,
+  totalPageLoads: 0,
+  totalShortsWatched: 0,
+  totalShortsMinutes: 0,
+  totalReelsWatched: 0,
+  totalTikToksWatched: 0,
+  sitesVisited: [],
+  sessionStartTime: Date.now(),
+  lastActivityTime: Date.now(),
+  scrollVelocityHits: 0,
+  siteVisitHistory: []   // For doom loop detection
+};
+
+let tabSessions = {};
+let recentSiteClosure = {};
+let customDoomSites = [];
+
+// ============================================
+// INITIALIZATION
+// ============================================
+chrome.runtime.onInstalled.addListener(async () => {
+  const today = new Date().toDateString();
+  const hour = new Date().getHours();
+  await chrome.storage.local.set({
+    settings: {
+      enabled: true,
+      showLossMeter: true,
+      showIntentGate: true,
+      showInterruptions: true,
+      showBreathing: true,
+      showFocusTimer: true,
+      showRedirect: true,
+      interventionIntensity: 'medium',
+      cleanDayThreshold: 30,
+      customDoomSites: [],
+      disabledSites: [],
+      redirectAfterMinutes: 20
+    },
+    stats: {
+      totalMinutesLost: 0,
+      sessionsToday: 0,
+      lastResetDate: today,
+      dailyHistory: [],
+      weeklyTotal: 0,
+      hourlyActivity: new Array(24).fill(0),
+      siteStats: {},
+      streak: { current: 0, longest: 0, lastDate: null },
+      badges: [],
+      xp: 0,
+      breathSessions: 0,
+      focusSessions: 0,
+      intentGateUsed: 0,
+      earlyMorningCleanDays: 0,
+      lateNightCleanDays: 0,
+      totalScrollsAllTime: 0,
+      todayScrolls: 0,
+      todayShorts: 0,
+      todayDoomScore: 0
+    }
+  });
+  console.log('[DoomGuard v2] Installed');
+});
+
+// Load custom doom sites on startup
+chrome.storage.local.get(['settings'], (data) => {
+  if (data.settings?.customDoomSites) {
+    customDoomSites = data.settings.customDoomSites;
+  }
+});
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+function getAllDoomSites() {
+  return [...DEFAULT_DOOM_SITES, ...customDoomSites];
+}
+
+function isDoomSite(url) {
+  try {
+    const hostname = new URL(url).hostname.replace('www.', '');
+    return getAllDoomSites().some(site => hostname.includes(site));
+  } catch { return false; }
+}
+
+function getSiteName(url) {
+  try {
+    const hostname = new URL(url).hostname.replace('www.', '');
+    for (const site of getAllDoomSites()) {
+      if (hostname.includes(site)) return site;
+    }
+    return hostname;
+  } catch { return 'unknown'; }
+}
+
+function getTimeMultiplier() {
+  const hour = new Date().getHours();
+  if (hour >= 0 && hour < 5) return 2.5;
+  if (hour >= 23) return 2.2;
+  if (hour >= 22) return 1.8;
+  if (hour >= 21) return 1.4;
+  if (hour >= 6 && hour < 9) return 1.2;
+  return 1.0;
+}
+
+function getDurationMultiplier() {
+  const minutes = (Date.now() - globalSessionData.sessionStartTime) / 60000;
+  if (minutes > 60) return 2.5;
+  if (minutes > 45) return 2.0;
+  if (minutes > 30) return 1.7;
+  if (minutes > 20) return 1.5;
+  if (minutes > 10) return 1.2;
+  return 1.0;
+}
+
+function getDoomLevel(score) {
+  if (score < 5) return 'Clear Mind';
+  if (score < 10) return 'Drifting';
+  if (score < 15) return 'Sliding';
+  if (score < 20) return 'Spiraling';
+  if (score < 30) return 'In the Loop';
+  return 'Deep Doom';
+}
+
+function calculateXPFromStats(stats) {
+  let xp = 0;
+  xp += stats.streak.current * 50;
+  xp += stats.breathSessions * 10;
+  xp += stats.focusSessions * 25;
+  xp += stats.badges.length * 100;
+  xp += stats.intentGateUsed * 2;
+  return Math.max(0, xp);
+}
+
+function getLevel(xp) {
+  const levels = [0, 100, 300, 600, 1000, 1500, 2200, 3000, 4000, 5500, 7500];
+  for (let i = levels.length - 1; i >= 0; i--) {
+    if (xp >= levels[i]) return i + 1;
+  }
+  return 1;
+}
+
+function getLevelProgress(xp) {
+  const levels = [0, 100, 300, 600, 1000, 1500, 2200, 3000, 4000, 5500, 7500];
+  const lvl = getLevel(xp);
+  if (lvl >= levels.length) return 100;
+  const current = levels[lvl - 1];
+  const next = levels[lvl];
+  return Math.floor(((xp - current) / (next - current)) * 100);
+}
+
+// ============================================
+// DOOM SCORE CALCULATION (Enhanced)
+// ============================================
+function recalculateGlobalScore() {
+  let score = 0;
+
+  // Scroll signals
+  if (globalSessionData.totalScrollCount > 200) score += 6;
+  else if (globalSessionData.totalScrollCount > 100) score += 4;
+  else if (globalSessionData.totalScrollCount > 50) score += 2;
+
+  // Scroll velocity (fast mindless scrolling)
+  if (globalSessionData.scrollVelocityHits > 10) score += 5;
+  else if (globalSessionData.scrollVelocityHits > 5) score += 3;
+  else if (globalSessionData.scrollVelocityHits > 2) score += 1;
+
+  // Page loads
+  if (globalSessionData.totalPageLoads > 20) score += 5;
+  else if (globalSessionData.totalPageLoads > 15) score += 4;
+  else if (globalSessionData.totalPageLoads > 8) score += 2;
+
+  // Multi-site doom hopping
+  const siteCount = globalSessionData.sitesVisited.length;
+  if (siteCount >= 5) score += 12;
+  else if (siteCount === 4) score += 8;
+  else if (siteCount === 3) score += 6;
+  else if (siteCount === 2) score += 3;
+
+  // Doom loop detection (A→B→A→B pattern)
+  const hist = globalSessionData.siteVisitHistory;
+  if (hist.length >= 4 && hist[hist.length - 1] === hist[hist.length - 3] &&
+      hist[hist.length - 2] === hist[hist.length - 4]) {
+    score += 6;
+  }
+
+  // Short-form content (TIME based)
+  const sfMinutes = globalSessionData.totalShortsMinutes;
+  if (sfMinutes > 30) score += 15;
+  else if (sfMinutes > 20) score += 12;
+  else if (sfMinutes > 10) score += 8;
+  else if (sfMinutes > 5) score += 5;
+  else if (sfMinutes > 2) score += 3;
+
+  // Short-form video count
+  const sfVideos = globalSessionData.totalShortsWatched +
+                   globalSessionData.totalReelsWatched +
+                   globalSessionData.totalTikToksWatched;
+  if (sfVideos > 50) score += 10;
+  else if (sfVideos > 30) score += 8;
+  else if (sfVideos > 20) score += 6;
+  else if (sfVideos > 10) score += 4;
+  else if (sfVideos > 5) score += 2;
+
+  // Passive consumption (scroll a lot, click nothing)
+  if (globalSessionData.totalScrollCount > 80 && globalSessionData.totalClickCount < 5) {
+    score += 4;
+  }
+
+  // Apply multipliers
+  score = score * getTimeMultiplier() * getDurationMultiplier();
+  globalDoomScore = Math.round(Math.max(0, score));
+  globalSessionData.lastActivityTime = Date.now();
+  return globalDoomScore;
+}
+
+// ============================================
+// BROADCAST TO ALL TABS
+// ============================================
+function broadcastScoreUpdate() {
+  const sessionMinutes = Math.floor((Date.now() - globalSessionData.sessionStartTime) / 60000);
+  const attentionCapacity = Math.max(0, 100 - Math.floor(sessionMinutes * 2.5 * (1 + globalDoomScore * 0.03)));
+  chrome.tabs.query({}, (tabs) => {
+    tabs.forEach(tab => {
+      chrome.tabs.sendMessage(tab.id, {
+        type: 'GLOBAL_SCORE_UPDATE',
+        score: globalDoomScore,
+        level: getDoomLevel(globalDoomScore),
+        sessionData: {
+          ...globalSessionData,
+          sessionMinutes,
+          attentionCapacity,
+          totalShortFormVideos: globalSessionData.totalShortsWatched +
+                                globalSessionData.totalReelsWatched +
+                                globalSessionData.totalTikToksWatched
+        }
+      }).catch(() => {});
+    });
+  });
+}
+
+setInterval(broadcastScoreUpdate, 2000);
+
+// ============================================
+// STREAK & BADGE SYSTEM
+// ============================================
+async function updateStreak(stats, minutesLost) {
+  const today = new Date().toDateString();
+  const threshold = stats.settings?.cleanDayThreshold || 30;
+  const isClean = minutesLost < threshold;
+
+  if (!stats.streak) {
+    stats.streak = { current: 0, longest: 0, lastDate: null };
+  }
+
+  const lastDate = stats.streak.lastDate;
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toDateString();
+
+  if (lastDate === yesterdayStr && isClean) {
+    stats.streak.current++;
+  } else if (lastDate !== today && isClean) {
+    stats.streak.current = 1;
+  } else if (!isClean) {
+    stats.streak.current = 0;
+  }
+
+  if (stats.streak.current > stats.streak.longest) {
+    stats.streak.longest = stats.streak.current;
+  }
+  if (isClean) stats.streak.lastDate = today;
+  return stats;
+}
+
+async function checkAndAwardBadges(stats) {
+  if (!stats.badges) stats.badges = [];
+  const earned = stats.badges;
+
+  const awardIfNew = (id) => {
+    if (!earned.includes(id)) { earned.push(id); return true; }
+    return false;
+  };
+
+  const minutesLost = stats.totalMinutesLost;
+  const streak = stats.streak?.current || 0;
+
+  if (minutesLost < 30 && stats.sessionsToday >= 1) awardIfNew('first_clean');
+  if (streak >= 3) awardIfNew('streak_3');
+  if (streak >= 7) awardIfNew('streak_7');
+  if (streak >= 30) awardIfNew('streak_30');
+  if (minutesLost < 5 && stats.sessionsToday >= 1) awardIfNew('quick_check');
+  if ((stats.breathSessions || 0) >= 5) awardIfNew('breath_5');
+  if ((stats.breathSessions || 0) >= 25) awardIfNew('breath_25');
+  if ((stats.focusSessions || 0) >= 5) awardIfNew('focus_5');
+  if ((stats.intentGateUsed || 0) >= 50) awardIfNew('intent_50');
+  if ((stats.todayDoomScore || 0) < 5 && stats.sessionsToday >= 1) awardIfNew('low_score');
+  if ((stats.earlyMorningCleanDays || 0) >= 5) awardIfNew('early_bird');
+  if ((stats.lateNightCleanDays || 0) >= 5) awardIfNew('night_free');
+
+  stats.badges = earned;
+  return stats;
+}
+
+// ============================================
+// HOURLY ACTIVITY TRACKING
+// ============================================
+async function updateHourlyActivity(minutesDelta) {
+  const { stats } = await chrome.storage.local.get(['stats']);
+  if (!stats) return;
+  if (!stats.hourlyActivity) stats.hourlyActivity = new Array(24).fill(0);
+  const hour = new Date().getHours();
+  stats.hourlyActivity[hour] = (stats.hourlyActivity[hour] || 0) + minutesDelta;
+  await chrome.storage.local.set({ stats });
+}
+
+// ============================================
+// MESSAGE HANDLERS
+// ============================================
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const tabId = sender.tab?.id;
+
+  switch (message.type) {
+
+    case 'DOOM_ACTIVITY': {
+      globalSessionData.totalScrollCount += message.scrollCount || 0;
+      globalSessionData.totalClickCount += message.clickCount || 0;
+      globalSessionData.totalPageLoads += message.pageLoads || 0;
+      globalSessionData.scrollVelocityHits += message.velocityHits || 0;
+
+      const site = message.site;
+      if (site && !globalSessionData.sitesVisited.includes(site)) {
+        globalSessionData.sitesVisited.push(site);
+      }
+      if (site) {
+        const hist = globalSessionData.siteVisitHistory;
+        if (hist[hist.length - 1] !== site) hist.push(site);
+        if (hist.length > 20) hist.shift();
+      }
+
+      recalculateGlobalScore();
+      broadcastScoreUpdate();
+      sendResponse({ success: true, globalScore: globalDoomScore });
+      break;
+    }
+
+    case 'SHORTS_ACTIVITY': {
+      globalSessionData.totalShortsMinutes = Math.max(globalSessionData.totalShortsMinutes, message.minutesInShorts || 0);
+      globalSessionData.totalShortsWatched = Math.max(globalSessionData.totalShortsWatched, message.shortsWatched || 0);
+      recalculateGlobalScore();
+      broadcastScoreUpdate();
+      sendResponse({ success: true, globalScore: globalDoomScore });
+      break;
+    }
+
+    case 'REELS_ACTIVITY': {
+      globalSessionData.totalShortsMinutes = Math.max(globalSessionData.totalShortsMinutes, message.minutesInReels || 0);
+      globalSessionData.totalReelsWatched = Math.max(globalSessionData.totalReelsWatched, message.reelsWatched || 0);
+      recalculateGlobalScore();
+      broadcastScoreUpdate();
+      sendResponse({ success: true, globalScore: globalDoomScore });
+      break;
+    }
+
+    case 'TIKTOK_ACTIVITY': {
+      globalSessionData.totalShortsMinutes = Math.max(globalSessionData.totalShortsMinutes, message.minutesOnTikTok || 0);
+      globalSessionData.totalTikToksWatched = Math.max(globalSessionData.totalTikToksWatched, message.tiktoksWatched || 0);
+      recalculateGlobalScore();
+      broadcastScoreUpdate();
+      sendResponse({ success: true, globalScore: globalDoomScore });
+      break;
+    }
+
+    case 'BREATHING_DONE': {
+      chrome.storage.local.get(['stats'], (data) => {
+        const stats = data.stats || {};
+        stats.breathSessions = (stats.breathSessions || 0) + 1;
+        stats.xp = calculateXPFromStats(stats);
+        chrome.storage.local.set({ stats });
+      });
+      sendResponse({ success: true });
+      break;
+    }
+
+    case 'FOCUS_STARTED': {
+      chrome.storage.local.get(['stats'], (data) => {
+        const stats = data.stats || {};
+        stats.focusSessions = (stats.focusSessions || 0) + 1;
+        stats.xp = calculateXPFromStats(stats);
+        chrome.storage.local.set({ stats });
+      });
+      sendResponse({ success: true });
+      break;
+    }
+
+    case 'INTENT_GATE_USED': {
+      chrome.storage.local.get(['stats'], (data) => {
+        const stats = data.stats || {};
+        stats.intentGateUsed = (stats.intentGateUsed || 0) + 1;
+        chrome.storage.local.set({ stats });
+      });
+      sendResponse({ success: true });
+      break;
+    }
+
+    case 'GET_GLOBAL_STATE': {
+      const sessionMinutes = Math.floor((Date.now() - globalSessionData.sessionStartTime) / 60000);
+      const attentionCapacity = Math.max(0, 100 - Math.floor(sessionMinutes * 2.5 * (1 + globalDoomScore * 0.03)));
+      sendResponse({
+        success: true,
+        globalScore: globalDoomScore,
+        level: getDoomLevel(globalDoomScore),
+        sessionData: {
+          ...globalSessionData,
+          sessionMinutes,
+          attentionCapacity,
+          totalShortFormVideos: globalSessionData.totalShortsWatched +
+                                globalSessionData.totalReelsWatched +
+                                globalSessionData.totalTikToksWatched
+        }
+      });
+      break;
+    }
+
+    case 'TAB_SESSION_START': {
+      const site = getSiteName(message.url);
+      const lastClosed = recentSiteClosure[site];
+      const isRapidReturn = lastClosed && (Date.now() - lastClosed) < 120000;
+      if (isRapidReturn) globalDoomScore += 4;
+      if (!globalSessionData.sitesVisited.includes(site)) globalSessionData.sitesVisited.push(site);
+      tabSessions[tabId] = { startTime: Date.now(), site, intent: message.intent || 'skipped' };
+      recalculateGlobalScore();
+      broadcastScoreUpdate();
+      sendResponse({ success: true, globalScore: globalDoomScore, isRapidReturn, sitesVisited: globalSessionData.sitesVisited });
+      break;
+    }
+
+    case 'TAB_CLOSING': {
+      const site = getSiteName(message.url);
+      recentSiteClosure[site] = Date.now();
+      const fiveMinAgo = Date.now() - 300000;
+      Object.keys(recentSiteClosure).forEach(s => {
+        if (recentSiteClosure[s] < fiveMinAgo) delete recentSiteClosure[s];
+      });
+      sendResponse({ success: true });
+      break;
+    }
+
+    case 'GET_SESSION_SUMMARY': {
+      const sessionMinutes = Math.floor((Date.now() - globalSessionData.sessionStartTime) / 60000);
+      const attentionCapacity = Math.max(0, 100 - Math.floor(sessionMinutes * 2.5 * (1 + globalDoomScore * 0.03)));
+      const recoveryTime = Math.floor(sessionMinutes * 0.44 * getTimeMultiplier());
+      const memoryRetention = Math.max(0, 100 - globalDoomScore * 3 - sessionMinutes * 1.5);
+      sendResponse({
+        success: true,
+        summary: {
+          minutesLost: sessionMinutes,
+          doomScore: globalDoomScore,
+          level: getDoomLevel(globalDoomScore),
+          attentionCapacity,
+          recoveryTime,
+          memoryRetention: Math.round(memoryRetention),
+          sitesVisited: globalSessionData.sitesVisited,
+          totalShortFormVideos: globalSessionData.totalShortsWatched + globalSessionData.totalReelsWatched + globalSessionData.totalTikToksWatched,
+          totalShortsMinutes: Math.round(globalSessionData.totalShortsMinutes),
+          scrollCount: globalSessionData.totalScrollCount,
+          clickCount: globalSessionData.totalClickCount,
+          velocityHits: globalSessionData.scrollVelocityHits
+        }
+      });
+      break;
+    }
+
+    case 'CHECK_DOOM_SITE': {
+      sendResponse({ isDoomSite: isDoomSite(message.url) });
+      break;
+    }
+
+    case 'GET_STATS': {
+      chrome.storage.local.get(['stats', 'settings'], (data) => {
+        if (data.stats) {
+          data.stats.xp = calculateXPFromStats(data.stats);
+          data.stats.level = getLevel(data.stats.xp);
+          data.stats.levelProgress = getLevelProgress(data.stats.xp);
+          data.stats.todayScrolls = globalSessionData.totalScrollCount;
+          data.stats.todayShorts = globalSessionData.totalShortsWatched + globalSessionData.totalReelsWatched + globalSessionData.totalTikToksWatched;
+          data.stats.todayDoomScore = globalDoomScore;
+          data.stats.doomLevel = getDoomLevel(globalDoomScore);
+          data.stats.badgeDefs = BADGE_DEFS;
+        }
+        sendResponse({ success: true, ...data });
+      });
+      return true;
+    }
+
+    case 'UPDATE_SETTINGS': {
+      chrome.storage.local.get(['settings'], (data) => {
+        const newSettings = { ...data.settings, ...message.settings };
+        chrome.storage.local.set({ settings: newSettings }, () => {
+          if (message.settings.customDoomSites !== undefined) {
+            customDoomSites = message.settings.customDoomSites;
+          }
+          sendResponse({ success: true });
+        });
+      });
+      return true;
+    }
+
+    case 'RESET_SESSION': {
+      globalDoomScore = 0;
+      globalSessionData = {
+        totalScrollCount: 0, totalClickCount: 0, totalTabSwitches: 0,
+        totalPageLoads: 0, totalShortsWatched: 0, totalShortsMinutes: 0,
+        totalReelsWatched: 0, totalTikToksWatched: 0,
+        sitesVisited: [], sessionStartTime: Date.now(), lastActivityTime: Date.now(),
+        scrollVelocityHits: 0, siteVisitHistory: []
+      };
+      broadcastScoreUpdate();
+      sendResponse({ success: true });
+      break;
+    }
+
+    default:
+      sendResponse({ success: false, error: 'Unknown message type' });
+  }
+
+  return false;
+});
+
+// ============================================
+// TAB EVENTS
+// ============================================
+chrome.tabs.onActivated.addListener(() => {
+  globalSessionData.totalTabSwitches++;
+  recalculateGlobalScore();
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (tabSessions[tabId]) delete tabSessions[tabId];
+});
+
+// ============================================
+// CUSTOM SITE INJECTION
+// ============================================
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status !== 'loading' || !tab.url) return;
+  if (customDoomSites.length === 0) return;
+
+  try {
+    const hostname = new URL(tab.url).hostname.replace('www.', '');
+    const isCustomDoom = customDoomSites.some(site => hostname.includes(site));
+    const isDefaultDoom = DEFAULT_DOOM_SITES.some(site => hostname.includes(site));
+    if (isCustomDoom && !isDefaultDoom) {
+      chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] }).catch(() => {});
+      chrome.scripting.insertCSS({ target: { tabId }, files: ['css/content.css'] }).catch(() => {});
+    }
+  } catch {}
+});
+
+// ============================================
+// STORAGE PERSISTENCE
+// ============================================
+setInterval(async () => {
+  const { stats } = await chrome.storage.local.get(['stats']);
+  if (!stats) return;
+
+  const today = new Date().toDateString();
+  const sessionMinutes = Math.floor((Date.now() - globalSessionData.sessionStartTime) / 60000);
+  const hour = new Date().getHours();
+
+  if (stats.lastResetDate !== today) {
+    // Day rolled over - update streak before resetting
+    const threshold = 30;
+    const wasClean = stats.totalMinutesLost < threshold;
+
+    // Check early/late night behavior
+    const noLateNight = (stats.hourlyActivity?.[22] || 0) + (stats.hourlyActivity?.[23] || 0) < 1;
+    const noEarlyMorning = (stats.hourlyActivity?.[6] || 0) + (stats.hourlyActivity?.[7] || 0) + (stats.hourlyActivity?.[8] || 0) < 1;
+    if (noLateNight) stats.lateNightCleanDays = (stats.lateNightCleanDays || 0) + 1;
+    if (noEarlyMorning) stats.earlyMorningCleanDays = (stats.earlyMorningCleanDays || 0) + 1;
+
+    stats.dailyHistory.push({
+      date: stats.lastResetDate,
+      minutesLost: stats.totalMinutesLost,
+      sessions: stats.sessionsToday,
+      doomScore: stats.todayDoomScore || 0
+    });
+    if (stats.dailyHistory.length > 30) stats.dailyHistory.shift();
+
+    // Update streak
+    await updateStreak(stats, stats.totalMinutesLost);
+    await checkAndAwardBadges(stats);
+
+    stats.totalMinutesLost = 0;
+    stats.sessionsToday = 0;
+    stats.lastResetDate = today;
+    stats.hourlyActivity = new Array(24).fill(0);
+    stats.siteStats = {};
+  }
+
+  // Update current stats
+  stats.totalMinutesLost = sessionMinutes;
+  stats.todayScrolls = globalSessionData.totalScrollCount;
+  stats.todayShorts = globalSessionData.totalShortsWatched + globalSessionData.totalReelsWatched + globalSessionData.totalTikToksWatched;
+  stats.todayDoomScore = globalDoomScore;
+  stats.weeklyTotal = stats.dailyHistory.slice(-6).reduce((sum, d) => sum + d.minutesLost, 0) + sessionMinutes;
+
+  // Update hourly activity
+  if (!stats.hourlyActivity) stats.hourlyActivity = new Array(24).fill(0);
+  stats.hourlyActivity[hour] = Math.max(stats.hourlyActivity[hour] || 0, Math.floor(sessionMinutes / 24));
+
+  // Update per-site stats
+  if (!stats.siteStats) stats.siteStats = {};
+  globalSessionData.sitesVisited.forEach(site => {
+    if (!stats.siteStats[site]) stats.siteStats[site] = { minutes: 0, sessions: 0 };
+    stats.siteStats[site].sessions = Math.max(stats.siteStats[site].sessions, 1);
+  });
+
+  stats.xp = calculateXPFromStats(stats);
+  stats.level = getLevel(stats.xp);
+  stats.levelProgress = getLevelProgress(stats.xp);
+
+  await chrome.storage.local.set({ stats });
+}, 30000);
+
+console.log('[DoomGuard v2] Background service worker started');

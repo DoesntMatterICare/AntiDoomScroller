@@ -1,0 +1,66 @@
+{
+  "manifest_version": 3,
+  "name": "DoomGuard – Anti Scroll Engine",
+  "version": "2.0.0",
+  "description": "Advanced doomscroll detection with streaks, gamification, breathing exercises, focus timer, and deep analytics",
+  "permissions": ["tabs", "storage", "scripting", "activeTab", "alarms", "notifications"],
+  "host_permissions": [
+    "*://*.reddit.com/*",
+    "*://*.youtube.com/*",
+    "*://*.twitter.com/*",
+    "*://*.x.com/*",
+    "*://*.instagram.com/*",
+    "*://*.tiktok.com/*",
+    "*://*.facebook.com/*",
+    "*://*.linkedin.com/*",
+    "*://*.pinterest.com/*",
+    "*://*.twitch.tv/*",
+    "*://*.snapchat.com/*",
+    "*://*.threads.net/*",
+    "*://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.reddit.com/*",
+        "*://*.youtube.com/*",
+        "*://*.twitter.com/*",
+        "*://*.x.com/*",
+        "*://*.instagram.com/*",
+        "*://*.tiktok.com/*",
+        "*://*.facebook.com/*",
+        "*://*.linkedin.com/*",
+        "*://*.pinterest.com/*",
+        "*://*.twitch.tv/*",
+        "*://*.snapchat.com/*",
+        "*://*.threads.net/*"
+      ],
+      "js": ["content.js"],
+      "css": ["css/content.css"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["css/content.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

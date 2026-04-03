@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DoomGuard</title>
+  <link rel="stylesheet" href="css/popup.css">
+</head>
+<body>
+  <div class="popup-container">
+
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="logo">
+        <img src="icons/icon16.png" width="18" height="18" alt="">
+        <span>DoomGuard</span>
+        <span class="version-tag">v2</span>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="enabled-toggle" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </header>
+
+    <!-- Tab Navigation -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="overview">Overview</button>
+      <button class="tab-btn" data-tab="analytics">Analytics</button>
+      <button class="tab-btn" data-tab="sites">Sites</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
+    </nav>
+
+    <!-- ===== TAB: OVERVIEW ===== -->
+    <div class="tab-content active" id="tab-overview">
+
+      <!-- Doom Score Ring -->
+      <div class="score-section">
+        <div class="score-ring-container">
+          <svg class="score-ring-svg" viewBox="0 0 120 120">
+            <defs>
+              <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#16a34a"/>
+                <stop offset="50%" stop-color="#d97706"/>
+                <stop offset="100%" stop-color="#dc2626"/>
+              </linearGradient>
+            </defs>
+            <circle class="score-ring-bg" cx="60" cy="60" r="48"/>
+            <circle class="score-ring-fill" id="score-ring-fill" cx="60" cy="60" r="48"
+                    stroke-dasharray="0 301" stroke-dashoffset="-75"/>
+          </svg>
+          <div class="score-ring-inner">
+            <span class="score-big" id="doom-score-display">0</span>
+            <span class="score-level-text" id="doom-level-display">Clear Mind</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Streak + Level row -->
+      <div class="streak-level-row">
+        <div class="streak-card">
+          <span class="streak-fire">&#9733;</span>
+          <span class="streak-num" id="streak-display">0</span>
+          <span class="streak-lbl">day streak</span>
+        </div>
+        <div class="xp-card">
+          <div class="xp-row">
+            <span class="xp-lvl-label" id="xp-level-label">Lvl 1</span>
+            <span class="xp-points" id="xp-points-label">0 XP</span>
+          </div>
+          <div class="xp-bar-track">
+            <div class="xp-bar-fill" id="xp-bar-fill" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Today Stats 4-grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-value" id="today-minutes">0</span>
+          <span class="stat-label">min today</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="sessions-count">0</span>
+          <span class="stat-label">sessions</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="scrolls-count">0</span>
+          <span class="stat-label">scrolls</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="shorts-count">0</span>
+          <span class="stat-label">shorts</span>
+        </div>
+      </div>
+
+      <!-- Attention Recovery -->
+      <div class="recovery-section">
+        <div class="recovery-header-row">
+          <span class="recovery-label">Attention Recovery</span>
+          <span class="recovery-pct" id="recovery-pct">100%</span>
+        </div>
+        <div class="recovery-bar">
+          <div class="recovery-fill" id="recovery-fill" style="width:100%"></div>
+        </div>
+        <span class="recovery-info" id="recovery-time">Fully recovered</span>
+      </div>
+
+      <!-- Badges -->
+      <div class="badges-section">
+        <div class="badges-header">
+          <span class="badges-title">Achievements</span>
+          <span class="badges-count" id="badges-count">0 / 12</span>
+        </div>
+        <div class="badges-grid" id="badges-grid">
+          <!-- Inserted by JS -->
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="quick-actions">
+        <button class="action-btn breathe-action" id="breathe-now-btn">Breathe Now</button>
+        <button class="action-btn reset-action" id="reset-stats">Reset Day</button>
+      </div>
+    </div>
+
+    <!-- ===== TAB: ANALYTICS ===== -->
+    <div class="tab-content" id="tab-analytics">
+
+      <!-- Weekly Chart -->
+      <div class="analytics-card">
+        <div class="analytics-card-header">
+          <span>Weekly Overview</span>
+          <span class="analytics-sub" id="weekly-total-label"></span>
+        </div>
+        <div class="chart-container" id="weekly-chart"></div>
+        <div class="chart-labels">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+      </div>
+
+      <!-- Hourly Heatmap -->
+      <div class="analytics-card">
+        <div class="analytics-card-header">
+          <span>Hourly Activity</span>
+          <span class="analytics-sub" id="heatmap-worst-label"></span>
+        </div>
+        <div class="heatmap-grid" id="heatmap-grid"></div>
+        <div class="heatmap-time-labels">
+          <span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>11pm</span>
+        </div>
+      </div>
+
+      <!-- Platform Breakdown -->
+      <div class="analytics-card">
+        <div class="analytics-card-header">
+          <span>Platform Breakdown</span>
+        </div>
+        <div class="platforms-list" id="platforms-list">
+          <div class="no-data-msg">No session data yet</div>
+        </div>
+      </div>
+
+      <!-- Best / Worst days -->
+      <div class="analytics-card">
+        <div class="analytics-card-header">
+          <span>Best & Worst Days</span>
+        </div>
+        <div class="bestworst-row" id="bestworst-row">
+          <div class="no-data-msg">Not enough data yet</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: SITES ===== -->
+    <div class="tab-content" id="tab-sites">
+
+      <div class="sites-section">
+        <div class="sites-section-header">
+          <span>Default Sites</span>
+          <span class="sites-note">Toggle to disable tracking</span>
+        </div>
+        <div class="sites-list" id="default-sites-list">
+          <!-- Inserted by JS -->
+        </div>
+      </div>
+
+      <div class="sites-section">
+        <div class="sites-section-header">
+          <span>Custom Sites</span>
+        </div>
+        <div class="add-site-row">
+          <input type="text" id="custom-site-input" placeholder="example.com" class="site-input" autocomplete="off">
+          <button class="add-site-btn" id="add-site-btn">Add</button>
+        </div>
+        <div class="sites-list" id="custom-sites-list">
+          <div class="no-data-msg" id="no-custom-sites">No custom sites added yet</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: SETTINGS ===== -->
+    <div class="tab-content" id="tab-settings">
+
+      <div class="settings-section">
+        <div class="settings-section-title">Features</div>
+        <div class="setting-item">
+          <span>Intent Gate</span>
+          <label class="toggle-switch small">
+            <input type="checkbox" id="intent-gate-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span>Loss Meter / HUD</span>
+          <label class="toggle-switch small">
+            <input type="checkbox" id="loss-meter-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span>Feed Interruptions</span>
+          <label class="toggle-switch small">
+            <input type="checkbox" id="interruptions-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span>Breathing Exercises</span>
+          <label class="toggle-switch small">
+            <input type="checkbox" id="breathing-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span>Focus Timer Offers</span>
+          <label class="toggle-switch small">
+            <input type="checkbox" id="focus-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span>Redirect Suggestions</span>
+          <label class="toggle-switch small">
+            <input type="checkbox" id="redirect-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Intervention Intensity</div>
+        <div class="intensity-row">
+          <button class="intensity-btn" data-level="light">Light</button>
+          <button class="intensity-btn active" data-level="medium">Medium</button>
+          <button class="intensity-btn" data-level="heavy">Heavy</button>
+        </div>
+        <div class="intensity-desc" id="intensity-desc">Interruptions every 5th post</div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Clean Day Goal</div>
+        <div class="threshold-row">
+          <span class="threshold-label">Under</span>
+          <input type="number" id="threshold-input" class="threshold-input" value="30" min="5" max="120">
+          <span class="threshold-label">min = clean day</span>
+        </div>
+      </div>
+
+      <div class="settings-section danger-section">
+        <div class="settings-section-title">Danger Zone</div>
+        <button class="danger-btn" id="reset-all-data">Reset All Data</button>
+      </div>
+    </div>
+
+  </div><!-- end popup-container -->
+
+  <script src="popup.js"></script>
+</body>
+</html>
