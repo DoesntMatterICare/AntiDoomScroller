@@ -526,7 +526,7 @@
    NO-PORN SCANNER — Blur & Block Styles
    ============================================ */
 
-/* Blurred image */
+/* Blurred image — applied directly on the <img>, no wrapper */
 .dg-explicit-blurred {
   filter: blur(22px) !important;
   transition: filter 0.35s ease !important;
@@ -537,18 +537,10 @@
   transition: filter 0.3s ease !important;
 }
 
-/* Wrapper that holds the image + label overlay */
-.dg-blur-wrapper {
-  position: relative !important;
-  display: inline-block !important;
-  overflow: hidden !important;
-  max-width: 100% !important;
-  border: 1px solid rgba(220,38,38,0.35) !important;
-  border-radius: 6px !important;
-}
-
-/* Label floating over the blurred image */
-.dg-blur-label {
+/* Overlay — absolutely positioned inside the img's EXISTING parent.
+   Does NOT wrap or move the img, so Pinterest/X/Instagram masonry/flex
+   layouts remain completely intact. */
+.dg-blur-overlay {
   position: absolute !important;
   inset: 0 !important;
   display: flex !important;
@@ -556,11 +548,14 @@
   align-items: center !important;
   justify-content: center !important;
   gap: 8px !important;
-  background: rgba(0,0,0,0.72) !important;
+  background: rgba(0, 0, 0, 0.72) !important;
   z-index: 9999 !important;
   pointer-events: auto !important;
   padding: 12px !important;
   text-align: center !important;
+  border: 1px solid rgba(220, 38, 38, 0.35) !important;
+  border-radius: 6px !important;
+  box-sizing: border-box !important;
 }
 
 .dg-blur-icon { color: #dc2626 !important; opacity: 0.9 !important; }

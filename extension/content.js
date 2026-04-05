@@ -466,7 +466,8 @@
 
   // STRICT thresholds
   const NSFW_PORN_THRESHOLD   = 0.50;  // Porn class
-  const NSFW_SEXY_THRESHOLD   = 0.55;  // Sexy class (strict mode)
+  const NSFW_SEXY_THRESHOLD   = 0.75;  // Sexy class — raised from 0.55 to reduce false positives
+                                        // on fashion/portrait/art photography (Pinterest, X)
   const NSFW_HENTAI_THRESHOLD = 0.50;  // Hentai class
   const IMAGES_TO_BLOCK_PAGE  = 3;     // flagged images before page block
   const MIN_IMAGE_DIMENSION   = 80;    // skip icons/avatars below this px
@@ -497,7 +498,19 @@
            (p['Hentai'] || 0) >= NSFW_HENTAI_THRESHOLD;
   }
 
-  /** Wrap image with blur overlay + reveal button */
+  /** Blur an explicit image without disturbing the page layout.
+   *
+   * OLD approach: wrapped img in a new div → physically moved img out of
+   * Pinterest/X containers → masonry/flex columns collapsed.
+   *
+   * NEW approach: keep img exactly where it is in the DOM.
+   *   1. Apply blur via CSS class directly on the img element.
+   *   2. Ensure img's direct parent is position:relative (most Pinterest/X
+   *      pin/tweet containers already are; we set it only when needed).
+   *   3. Append the overlay label as an absolute-positioned sibling inside
+   *      that same parent, covering inset:0 → overlay sits on top of img
+   *      without moving a single byte of the site's DOM structure.
+   */
   function blurExplicitImage(img, predictions) {
     if (img.dataset.dgBlurred) return;
     img.dataset.dgBlurred = 'true';
@@ -508,12 +521,25 @@
     const topClass = ['Porn','Sexy','Hentai'].find(c => (p[c] || 0) > 0.3) || 'Explicit';
     const confidence = Math.round(Math.max(p['Porn']||0, p['Sexy']||0, p['Hentai']||0) * 100);
 
-    const wrapper = document.createElement('div');
-    wrapper.className = 'dg-blur-wrapper';
+    const parent = img.parentNode;
+    if (!parent) {
+      flaggedImagesCount++;
+      if (flaggedImagesCount >= IMAGES_TO_BLOCK_PAGE) showPageBlockOverlay();
+      return;
+    }
 
-    const label = document.createElement('div');
-    label.className = 'dg-blur-label';
-    label.innerHTML = `
+    // Make the parent the overlay's positioning context.
+    // Only add position:relative if currently static — Pinterest <a> tags and
+    // X tweet image containers already have position:relative, so this is a no-op.
+    const parentPos = getComputedStyle(parent).position;
+    if (parentPos === 'static') {
+      parent.style.setProperty('position', 'relative', 'important');
+      parent.dataset.dgAddedPosition = 'true';
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dg-blur-overlay';
+    overlay.innerHTML = `
       <span class="dg-blur-icon">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
@@ -524,21 +550,20 @@
       <span class="dg-blur-text">${topClass} content — ${confidence}% confidence</span>
       <button class="dg-blur-reveal" data-reveal="true">Show anyway</button>`;
 
-    label.querySelector('[data-reveal]').addEventListener('click', (e) => {
+    overlay.querySelector('[data-reveal]').addEventListener('click', (e) => {
       e.stopPropagation();
       img.classList.remove('dg-explicit-blurred');
       img.classList.add('dg-explicit-revealed');
-      label.remove();
-      wrapper.classList.remove('dg-blur-wrapper');
+      overlay.remove();
+      // Restore parent positioning if we were the ones who set it
+      if (parent.dataset.dgAddedPosition) {
+        parent.style.removeProperty('position');
+        delete parent.dataset.dgAddedPosition;
+      }
     });
 
-    if (img.parentNode) {
-      const parent = img.parentNode;
-      const next = img.nextSibling;
-      wrapper.appendChild(img);
-      wrapper.appendChild(label);
-      parent.insertBefore(wrapper, next);
-    }
+    // Append overlay inside the existing parent — img stays untouched in DOM
+    parent.appendChild(overlay);
 
     flaggedImagesCount++;
     if (flaggedImagesCount >= IMAGES_TO_BLOCK_PAGE) showPageBlockOverlay();
