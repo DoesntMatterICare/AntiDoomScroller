@@ -291,7 +291,8 @@ function broadcastScoreUpdate() {
   });
 }
 
-setInterval(broadcastScoreUpdate, 2000);
+// Broadcast at 5s — HUD doesn't need sub-5s precision, and this fires to ALL open doom tabs
+setInterval(broadcastScoreUpdate, 5000);
 
 // ============================================
 // STREAK & BADGE SYSTEM
@@ -565,7 +566,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       recalculateGlobalScore();
-      broadcastScoreUpdate();
+      // Don't broadcastScoreUpdate here — the 5s interval handles it,
+      // avoiding a double-broadcast storm when multiple tabs are active.
       sendResponse({ success: true, globalScore: globalDoomScore });
       break;
     }
@@ -574,7 +576,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       globalSessionData.totalShortsMinutes = Math.max(globalSessionData.totalShortsMinutes, message.minutesInShorts || 0);
       globalSessionData.totalShortsWatched = Math.max(globalSessionData.totalShortsWatched, message.shortsWatched || 0);
       recalculateGlobalScore();
-      broadcastScoreUpdate();
       sendResponse({ success: true, globalScore: globalDoomScore });
       break;
     }
@@ -583,7 +584,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       globalSessionData.totalShortsMinutes = Math.max(globalSessionData.totalShortsMinutes, message.minutesInReels || 0);
       globalSessionData.totalReelsWatched = Math.max(globalSessionData.totalReelsWatched, message.reelsWatched || 0);
       recalculateGlobalScore();
-      broadcastScoreUpdate();
       sendResponse({ success: true, globalScore: globalDoomScore });
       break;
     }
@@ -592,7 +592,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       globalSessionData.totalShortsMinutes = Math.max(globalSessionData.totalShortsMinutes, message.minutesOnTikTok || 0);
       globalSessionData.totalTikToksWatched = Math.max(globalSessionData.totalTikToksWatched, message.tiktoksWatched || 0);
       recalculateGlobalScore();
-      broadcastScoreUpdate();
       sendResponse({ success: true, globalScore: globalDoomScore });
       break;
     }
@@ -658,7 +657,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!globalSessionData.sitesVisited.includes(site)) globalSessionData.sitesVisited.push(site);
       tabSessions[tabId] = { startTime: Date.now(), site, intent: message.intent || 'skipped' };
       recalculateGlobalScore();
-      broadcastScoreUpdate();
+      // Skip broadcastScoreUpdate — interval will pick it up shortly
       sendResponse({ success: true, globalScore: globalDoomScore, isRapidReturn, sitesVisited: globalSessionData.sitesVisited });
       break;
     }
@@ -786,7 +785,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   } catch (_) {}
 
   recalculateGlobalScore();
-  broadcastScoreUpdate();
+  // Don't broadcastScoreUpdate here — the 5s interval handles all tabs
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {

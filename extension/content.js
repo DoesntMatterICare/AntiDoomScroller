@@ -295,16 +295,23 @@
       feedObserver = new MutationObserver(() => injectFeedInterruptions());
       feedObserver.observe(feedContainer, { childList: true, subtree: true });
     }
-    setInterval(injectFeedInterruptions, 3000);
+    // Removed: setInterval(injectFeedInterruptions, 3000)
+    // The MutationObserver above already handles new posts as they are injected.
+    // A polling interval does a full querySelectorAll every 3s for no benefit.
   }
 
   // ============================================
   // URL CHANGE DETECTION
   // ============================================
   function setupUrlChangeDetection() {
-    new MutationObserver(() => {
+    // Use a lightweight interval poll instead of a document-level MutationObserver.
+    // A subtree:true observer on `document` fires on every single DOM mutation
+    // (hundreds/sec on infinite-scroll feeds) — that's the #1 source of lag.
+    // Polling every 500ms is imperceptibly slower and costs virtually nothing.
+    setInterval(() => {
       if (location.href !== lastUrl) { handleUrlChange(lastUrl, location.href); lastUrl = location.href; }
-    }).observe(document, { subtree: true, childList: true });
+    }, 500);
+
     window.addEventListener('popstate', () => {
       if (location.href !== lastUrl) { handleUrlChange(lastUrl, location.href); lastUrl = location.href; }
     });
@@ -354,10 +361,12 @@
         localVelocityHits++;
       }
 
-      // Grayscale Shift: track first scroll time on a feed page
-      const platform = getCurrentPlatform();
-      if (platform && !feedScrollStartTime) {
-        feedScrollStartTime = Date.now();
+      // Grayscale Shift: track first scroll time on a feed page.
+      // Guard with !feedScrollStartTime so getCurrentPlatform() (a loop) only
+      // runs once — not on every single scroll event.
+      if (!feedScrollStartTime) {
+        const platform = getCurrentPlatform();
+        if (platform) feedScrollStartTime = Date.now();
       }
     }, { passive: true });
 
@@ -373,6 +382,8 @@
   }
 
   function startActivityReporting() {
+    // 4s interval: frequent enough for accurate tracking, light enough to avoid
+    // hammering the background worker and triggering score recalcs every 2s.
     setInterval(() => {
       if (!sessionActive) return;
       if (shortsSessionData.isActive) reportShortFormActivity();
@@ -387,7 +398,7 @@
         });
         localScrollCount = 0; localClickCount = 0; localPageLoads = 0; localVelocityHits = 0;
       }
-    }, 2000);
+    }, 4000);
   }
 
   function getSiteNameLocal() {
@@ -631,15 +642,22 @@
 
   function startPornScanObserver() {
     if (pornScanObserver) return;
+
+    // Debounce: collect mutations for 400ms before draining the queue.
+    // Without this, infinite-scroll sites trigger hundreds of observer callbacks
+    // per second during scrolling (each new lazy-loaded element fires it),
+    // causing constant querySelectorAll('img') calls that stall the main thread.
+    let debounceTimer = null;
     pornScanObserver = new MutationObserver((mutations) => {
-      let added = false;
       mutations.forEach(m => m.addedNodes.forEach(node => {
-        if (node.nodeName === 'IMG') { scanQueue.push(node); added = true; }
+        if (node.nodeName === 'IMG') { scanQueue.push(node); }
         else if (node.nodeType === 1) {
-          node.querySelectorAll?.('img').forEach(img => { scanQueue.push(img); added = true; });
+          node.querySelectorAll?.('img').forEach(img => scanQueue.push(img));
         }
       }));
-      if (added) drainScanQueue();
+      // Debounce: only actually drain once the mutation burst has settled
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(drainScanQueue, 400);
     });
     pornScanObserver.observe(document.documentElement, { childList: true, subtree: true });
   }
