@@ -101,3 +101,64 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "DoomGuard Chrome Extension v2 — Add 3 neurological intervention features:
+1. Grayscale Shift: After 3 min of feed scrolling, inject CSS filter grayscale(100%) with 10s transition
+2. Context Switching Tax: Track tab-hops between blacklisted sites in 5-min window, >3 hops multiplies Doom Score
+3. Aggressive Audio Interrupt: When Doom Score hits max (Deep Doom >=30), play sharp snare+bass audio cue"
+
+frontend:
+  - task: "Grayscale Shift — drain page color after 3 min feed scrolling"
+    implemented: true
+    working: "NA"
+    file: "extension/content.js, extension/css/content.css"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented feedScrollStartTime tracking in scroll event, applyGrayscaleShift() applies document.documentElement CSS filter:grayscale(100%) with 10s ease-in transition. showGrayscaleToast() shows 5-sec notification. resetGrayscaleShift() reverts with 2s ease-out. Toast CSS and grayscale-mode HUD badge added to content.css."
+
+  - task: "Context Switching Tax — multiply Doom Score on rapid doom-site tab-hops"
+    implemented: true
+    working: "NA"
+    file: "extension/background.js, extension/content.js, extension/css/content.css"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "background.js: recentBlacklistedSwitches[] tracks doom-site tab activations with timestamps. 5-min sliding window cleanup. >3 hops sets contextSwitchTaxMultiplier (1 + (hops-3)*0.5). Applied in recalculateGlobalScore(). Broadcast in sessionData. content.js: updateContextSwitchIndicator() shows pulsing orange '⚡ N tab-hops — Nx Score Tax' banner in HUD."
+
+  - task: "Aggressive Audio Interrupt — snare+bass hit when Doom Score hits Deep Doom"
+    implemented: true
+    working: "NA"
+    file: "extension/content.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "playDoomAlarm() synthesizes 3-component audio via Web Audio API: (1) white-noise snare with bandpass 2500Hz filter, (2) bass oscillator pitch-drop 200→40Hz, (3) sharp click transient. 90s cooldown. deepDoomAudioFired guard fires once on score>=30, resets when score<30. ensureAudioContext() handles suspended AudioContext resumption."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 0
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Grayscale Shift — drain page color after 3 min feed scrolling"
+    - "Context Switching Tax — multiply Doom Score on rapid doom-site tab-hops"
+    - "Aggressive Audio Interrupt — snare+bass hit when Doom Score hits Deep Doom"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Implemented 3 neurological intervention features for DoomGuard Chrome extension. All changes are in extension/content.js, extension/background.js, and extension/css/content.css. The extension needs to be loaded/reloaded in Chrome (chrome://extensions developer mode) to test. Manual testing required as this is a browser extension."

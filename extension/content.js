@@ -53,6 +53,21 @@
   let settings = null;
 
   // ============================================
+  // FEATURE: GRAYSCALE SHIFT
+  // ============================================
+  let feedScrollStartTime = null;   // when user first scrolled on this feed
+  let grayscaleActive = false;      // is grayscale currently applied?
+  let grayscaleToastShown = false;  // has the "grayscale activated" toast been shown?
+
+  // ============================================
+  // FEATURE: AGGRESSIVE AUDIO
+  // ============================================
+  let audioCtx = null;
+  let lastAudioTime = 0;
+  const AUDIO_COOLDOWN_MS = 90000; // 90 second cooldown between audio alarms
+  let deepDoomAudioFired = false;  // guard so we only fire once per Deep Doom entry
+
+  // ============================================
   // PLATFORM SELECTORS
   // ============================================
   const FEED_SELECTORS = {
@@ -338,6 +353,12 @@
       if (scrollTimes.length === 10 && (scrollTimes[9] - scrollTimes[0]) < 3000) {
         localVelocityHits++;
       }
+
+      // Grayscale Shift: track first scroll time on a feed page
+      const platform = getCurrentPlatform();
+      if (platform && !feedScrollStartTime) {
+        feedScrollStartTime = Date.now();
+      }
     }, { passive: true });
 
     document.addEventListener('click', () => localClickCount++);
@@ -380,11 +401,30 @@
 
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === 'GLOBAL_SCORE_UPDATE') {
+      const prevScore = globalScore;
       globalScore = message.score;
       globalLevel = message.level || 'Clear Mind';
       globalSessionData = message.sessionData;
       updateHUDDisplay();
       checkTimedInterventions();
+
+      // ── GRAYSCALE SHIFT: check 3-min feed scroll ──────────────────────
+      if (feedScrollStartTime && !grayscaleActive) {
+        const feedScrollMinutes = (Date.now() - feedScrollStartTime) / 60000;
+        if (feedScrollMinutes >= 3) {
+          applyGrayscaleShift();
+        }
+      }
+
+      // ── AGGRESSIVE AUDIO: fire when entering Deep Doom (score >= 30) ──
+      if (globalScore >= 30 && !deepDoomAudioFired) {
+        deepDoomAudioFired = true;
+        playDoomAlarm();
+      }
+      // Reset the guard when score drops back below 30 so it can fire again
+      if (globalScore < 30 && deepDoomAudioFired) {
+        deepDoomAudioFired = false;
+      }
     }
   });
 
@@ -612,6 +652,149 @@
     setTimeout(scanAllImagesNow, 3000);
     setTimeout(scanAllImagesNow, 7000);
     startPornScanObserver();
+  }
+
+  // ============================================
+  // FEATURE: GRAYSCALE SHIFT (Variable Reward Killer)
+  // After 3 min of active feed scrolling, slowly drain color
+  // ============================================
+  function applyGrayscaleShift() {
+    if (grayscaleActive) return;
+    grayscaleActive = true;
+
+    // Apply the CSS filter on the html element — 10s transition drains color
+    document.documentElement.style.setProperty('transition', 'filter 10s ease-in', 'important');
+    document.documentElement.style.setProperty('filter', 'grayscale(100%)', 'important');
+
+    // Show a subtle toast notification
+    if (!grayscaleToastShown) {
+      grayscaleToastShown = true;
+      showGrayscaleToast();
+    }
+
+    console.log('[DoomGuard] Grayscale shift activated — 3min feed scroll detected');
+  }
+
+  function resetGrayscaleShift() {
+    if (!grayscaleActive) return;
+    grayscaleActive = false;
+    document.documentElement.style.setProperty('transition', 'filter 2s ease-out', 'important');
+    document.documentElement.style.setProperty('filter', 'grayscale(0%)', 'important');
+
+    // Remove toast if still present
+    const toast = document.getElementById('dg-grayscale-toast');
+    if (toast) { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }
+  }
+
+  function showGrayscaleToast() {
+    const toast = document.createElement('div');
+    toast.id = 'dg-grayscale-toast';
+    toast.innerHTML = `
+      <span class="dg-gs-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 8v4M12 16h.01"/>
+        </svg>
+      </span>
+      <span>Color removed — 3 min scroll detected</span>`;
+    document.body.appendChild(toast);
+    // Auto-fade after 5 seconds
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => { if (toast.parentNode) toast.remove(); }, 600);
+    }, 5000);
+  }
+
+  // ============================================
+  // FEATURE: AGGRESSIVE AUDIO INTERRUPT
+  // Sharp snare + bass hit synthesized via Web Audio API
+  // Fires when Doom Score hits Deep Doom (>= 30)
+  // ============================================
+  function ensureAudioContext() {
+    if (!audioCtx) {
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (_) { audioCtx = null; }
+    }
+    // Resume if suspended (Chrome auto-suspends inactive contexts)
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+    return audioCtx;
+  }
+
+  function playDoomAlarm() {
+    const now = Date.now();
+    if (now - lastAudioTime < AUDIO_COOLDOWN_MS) return;
+    lastAudioTime = now;
+
+    const ctx = ensureAudioContext();
+    if (!ctx) return;
+
+    const t = ctx.currentTime;
+
+    // ── SNARE: white noise burst ──────────────────────────────────────────
+    const snareLen = ctx.sampleRate * 0.25;
+    const snareBuf = ctx.createBuffer(1, snareLen, ctx.sampleRate);
+    const snareData = snareBuf.getChannelData(0);
+    for (let i = 0; i < snareLen; i++) {
+      // Exponential decay envelope on white noise
+      snareData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / snareLen, 2.8);
+    }
+    const snareSource = ctx.createBufferSource();
+    snareSource.buffer = snareBuf;
+
+    // Bandpass filter to make it snare-like
+    const snareFilter = ctx.createBiquadFilter();
+    snareFilter.type = 'bandpass';
+    snareFilter.frequency.value = 2500;
+    snareFilter.Q.value = 0.8;
+
+    const snareGain = ctx.createGain();
+    snareGain.gain.setValueAtTime(2.2, t);
+    snareGain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+
+    snareSource.connect(snareFilter);
+    snareFilter.connect(snareGain);
+    snareGain.connect(ctx.destination);
+    snareSource.start(t);
+    snareSource.stop(t + 0.25);
+
+    // ── BASS SLAP: deep oscillator punch ─────────────────────────────────
+    const bassOsc = ctx.createOscillator();
+    bassOsc.type = 'sine';
+    bassOsc.frequency.setValueAtTime(200, t);
+    bassOsc.frequency.exponentialRampToValueAtTime(40, t + 0.12); // pitch drop for that "slap" feel
+
+    const bassGain = ctx.createGain();
+    bassGain.gain.setValueAtTime(3.0, t);
+    bassGain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+
+    bassOsc.connect(bassGain);
+    bassGain.connect(ctx.destination);
+    bassOsc.start(t);
+    bassOsc.stop(t + 0.18);
+
+    // ── CLICK TRANSIENT: sharp high-frequency attack ──────────────────────
+    const clickBufLen = Math.floor(ctx.sampleRate * 0.012);
+    const clickBuf = ctx.createBuffer(1, clickBufLen, ctx.sampleRate);
+    const clickData = clickBuf.getChannelData(0);
+    for (let i = 0; i < clickBufLen; i++) {
+      clickData[i] = (Math.random() * 2 - 1) * (1 - i / clickBufLen);
+    }
+    const clickSource = ctx.createBufferSource();
+    clickSource.buffer = clickBuf;
+
+    const clickGain = ctx.createGain();
+    clickGain.gain.setValueAtTime(1.5, t);
+    clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.012);
+
+    clickSource.connect(clickGain);
+    clickGain.connect(ctx.destination);
+    clickSource.start(t);
+    clickSource.stop(t + 0.012);
+
+    console.log('[DoomGuard] AUDIO ALARM — Deep Doom reached!');
   }
 
   // ============================================
@@ -879,6 +1062,40 @@
     hudElement.classList.remove('warning', 'critical');
     if (score > 20 || attention < 30) hudElement.classList.add('critical');
     else if (score > 10 || attention < 60) hudElement.classList.add('warning');
+
+    // Context Switch Tax indicator in HUD
+    updateContextSwitchIndicator();
+
+    // Grayscale active indicator
+    if (grayscaleActive) hudElement.classList.add('grayscale-mode');
+    else hudElement.classList.remove('grayscale-mode');
+  }
+
+  // ============================================
+  // CONTEXT SWITCH TAX — HUD indicator
+  // ============================================
+  function updateContextSwitchIndicator() {
+    if (!hudElement || !globalSessionData) return;
+    const switchCount = globalSessionData.contextSwitchCount || 0;
+    const taxActive = globalSessionData.contextSwitchTaxActive || false;
+
+    let indicator = hudElement.querySelector('#dg-ctx-switch-indicator');
+
+    if (taxActive && switchCount > 3) {
+      if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'dg-ctx-switch-indicator';
+        indicator.className = 'dg-ctx-switch-banner';
+        const fullHud = hudElement.querySelector('#dg-hud-full');
+        if (fullHud) fullHud.appendChild(indicator);
+      }
+      indicator.innerHTML = `
+        <span class="dg-ctx-icon">&#9889;</span>
+        <span class="dg-ctx-text">${switchCount} tab-hops — ${Math.round((1 + (switchCount - 3) * 0.5) * 10) / 10}x Score Tax</span>`;
+      indicator.style.display = 'flex';
+    } else if (indicator) {
+      indicator.style.display = 'none';
+    }
   }
 
   // ============================================

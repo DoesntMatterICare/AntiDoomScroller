@@ -92,3 +92,26 @@ reddit.com, youtube.com, twitter.com, x.com, instagram.com, tiktok.com, facebook
 - [ ] Weekly email/notification summary
 - [ ] White-list mode (only allow specific sites)
 - [ ] Import stats from previous version
+
+## v2.1 — Neurological Interventions (Jul 2025)
+
+### Feature: Grayscale Shift (Variable Reward Killer)
+- After **3 minutes of continuous feed scrolling**, injects CSS `filter: grayscale(100%)` on `<html>`
+- 10-second ease-in transition drains color from the entire page
+- Without visual candy, dopamine release drops and the urge to scroll decreases
+- Toast notification confirms the shift; HUD shows "B&W" badge
+- Resets gracefully if score drops (2s ease-out)
+
+### Feature: Context Switching Tax
+- Tracks tab-hops between **blacklisted doom sites** within a **5-minute sliding window**
+- More than **3 switches** in 5 min triggers a score multiplier: `1 + (hops - 3) × 0.5x`
+  - 4 hops → 1.5× | 5 hops → 2× | 6 hops → 2.5×
+- Doom Score multiplied in `recalculateGlobalScore()` — targets scattered low-attention state
+- HUD shows pulsing orange "⚡ N tab-hops — Nx Score Tax" banner
+
+### Feature: Aggressive Audio Interrupt
+- When Doom Score enters **Deep Doom (≥ 30)**, fires a jarring snare + bass slap sound
+- Synthesized 100% via Web Audio API — no audio files needed
+- Components: white-noise snare burst (bandpass 2500Hz), bass oscillator pitch-drop (200→40Hz), sharp click transient
+- 90-second cooldown to avoid repeat spam; resets when score drops below 30
+- Bypasses visual-only tunnel-vision — snaps user out of dopamine loop on a sensory level

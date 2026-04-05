@@ -59,6 +59,10 @@ let tabSessions = {};
 let recentSiteClosure = {};
 let customDoomSites = [];
 
+// Context Switching Tax — tracks rapid doom-site tab-hops within a 5-min window
+let recentBlacklistedSwitches = [];   // array of {tabId, site, timestamp}
+let contextSwitchTaxMultiplier = 1;   // applied in recalculateGlobalScore
+
 // ============================================
 // INITIALIZATION
 // ============================================
@@ -254,7 +258,7 @@ function recalculateGlobalScore() {
   }
 
   // Apply multipliers
-  score = score * getTimeMultiplier() * getDurationMultiplier();
+  score = score * getTimeMultiplier() * getDurationMultiplier() * contextSwitchTaxMultiplier;
   globalDoomScore = Math.round(Math.max(0, score));
   globalSessionData.lastActivityTime = Date.now();
   return globalDoomScore;
@@ -278,7 +282,9 @@ function broadcastScoreUpdate() {
           attentionCapacity,
           totalShortFormVideos: globalSessionData.totalShortsWatched +
                                 globalSessionData.totalReelsWatched +
-                                globalSessionData.totalTikToksWatched
+                                globalSessionData.totalTikToksWatched,
+          contextSwitchCount: recentBlacklistedSwitches.length,
+          contextSwitchTaxActive: contextSwitchTaxMultiplier > 1
         }
       }).catch(() => {});
     });
@@ -636,7 +642,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           attentionCapacity,
           totalShortFormVideos: globalSessionData.totalShortsWatched +
                                 globalSessionData.totalReelsWatched +
-                                globalSessionData.totalTikToksWatched
+                                globalSessionData.totalTikToksWatched,
+          contextSwitchCount: recentBlacklistedSwitches.length,
+          contextSwitchTaxActive: contextSwitchTaxMultiplier > 1
         }
       });
       break;
@@ -750,9 +758,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // ============================================
 // TAB EVENTS
 // ============================================
-chrome.tabs.onActivated.addListener(() => {
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
   globalSessionData.totalTabSwitches++;
+
+  // Context Switching Tax — track rapid doom-site hops
+  try {
+    const tab = await chrome.tabs.get(activeInfo.tabId);
+    if (tab?.url && isDoomSite(tab.url)) {
+      const now = Date.now();
+      const WINDOW = 5 * 60 * 1000; // 5-minute window
+
+      // Record this switch
+      recentBlacklistedSwitches.push({ tabId: activeInfo.tabId, site: getSiteName(tab.url), timestamp: now });
+
+      // Purge switches older than 5 min
+      recentBlacklistedSwitches = recentBlacklistedSwitches.filter(s => now - s.timestamp < WINDOW);
+
+      // Apply multiplier: > 3 hops → multiply score penalty
+      const hopCount = recentBlacklistedSwitches.length;
+      if (hopCount > 3) {
+        // Each additional hop beyond 3 adds 0.5x — e.g. 4 hops = 1.5x, 5 hops = 2x, 6 hops = 2.5x
+        contextSwitchTaxMultiplier = 1 + (hopCount - 3) * 0.5;
+      } else {
+        contextSwitchTaxMultiplier = 1;
+      }
+    }
+  } catch (_) {}
+
   recalculateGlobalScore();
+  broadcastScoreUpdate();
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
