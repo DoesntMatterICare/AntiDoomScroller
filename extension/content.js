@@ -401,7 +401,6 @@
 
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === 'GLOBAL_SCORE_UPDATE') {
-      const prevScore = globalScore;
       globalScore = message.score;
       globalLevel = message.level || 'Clear Mind';
       globalSessionData = message.sessionData;
@@ -662,8 +661,11 @@
     if (grayscaleActive) return;
     grayscaleActive = true;
 
-    // Apply the CSS filter on the html element — 10s transition drains color
+    // Set the transition FIRST, force a reflow so the browser registers it,
+    // then change filter — otherwise both properties are batched together in
+    // the same style recalculation and the 10s animation is skipped entirely.
     document.documentElement.style.setProperty('transition', 'filter 10s ease-in', 'important');
+    void document.documentElement.offsetHeight; // force reflow / layout flush
     document.documentElement.style.setProperty('filter', 'grayscale(100%)', 'important');
 
     // Show a subtle toast notification
@@ -679,6 +681,7 @@
     if (!grayscaleActive) return;
     grayscaleActive = false;
     document.documentElement.style.setProperty('transition', 'filter 2s ease-out', 'important');
+    void document.documentElement.offsetHeight; // force reflow so transition is registered
     document.documentElement.style.setProperty('filter', 'grayscale(0%)', 'important');
 
     // Remove toast if still present
@@ -723,7 +726,7 @@
     return audioCtx;
   }
 
-  function playDoomAlarm() {
+  async function playDoomAlarm() {
     const now = Date.now();
     if (now - lastAudioTime < AUDIO_COOLDOWN_MS) return;
     lastAudioTime = now;
@@ -731,10 +734,17 @@
     const ctx = ensureAudioContext();
     if (!ctx) return;
 
+    // Must await resume — Chrome auto-suspends AudioContext on inactive tabs.
+    // Scheduling audio nodes while suspended results in them firing at t=0 which
+    // is already in the past, so nothing plays. Wait until context is running.
+    if (ctx.state === 'suspended') {
+      try { await ctx.resume(); } catch (_) { return; }
+    }
+
     const t = ctx.currentTime;
 
     // ── SNARE: white noise burst ──────────────────────────────────────────
-    const snareLen = ctx.sampleRate * 0.25;
+    const snareLen = Math.floor(ctx.sampleRate * 0.25); // must be integer
     const snareBuf = ctx.createBuffer(1, snareLen, ctx.sampleRate);
     const snareData = snareBuf.getChannelData(0);
     for (let i = 0; i < snareLen; i++) {
