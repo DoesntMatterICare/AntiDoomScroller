@@ -58,6 +58,7 @@ let globalSessionData = {
 let tabSessions = {};
 let recentSiteClosure = {};
 let customDoomSites = [];
+let disabledSites = [];
 
 // Context Switching Tax — tracks rapid doom-site tab-hops within a 5-min window
 let recentBlacklistedSwitches = [];   // array of {tabId, site, timestamp}
@@ -112,22 +113,15 @@ chrome.runtime.onInstalled.addListener(async () => {
   setTimeout(() => ensureOffscreenDocument().catch(() => {}), 2000);
 });
 
-// Load custom doom sites on startup
+// Load custom doom sites and disabled sites on startup
 chrome.storage.local.get(['settings'], (data) => {
   if (data.settings?.customDoomSites) {
     customDoomSites = data.settings.customDoomSites;
   }
+  if (data.settings?.disabledSites) {
+    disabledSites = data.settings.disabledSites;
+  }
 });
-// Around line 121 — add disabledSites loading
-let disabledSites = [];  // add this at top near line 60
-
-// In the startup loader around line 121:
-if (data.settings?.customDoomSites) {
-  customDoomSites = data.settings.customDoomSites;
-}
-if (data.settings?.disabledSites) {
-  disabledSites = data.settings.disabledSites;  // ADD THIS
-}
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
@@ -741,6 +735,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         chrome.storage.local.set({ settings: newSettings }, () => {
           if (message.settings.customDoomSites !== undefined) {
             customDoomSites = message.settings.customDoomSites;
+          }
+          if (message.settings.disabledSites !== undefined) {
+            disabledSites = message.settings.disabledSites;
           }
           sendResponse({ success: true });
         });
