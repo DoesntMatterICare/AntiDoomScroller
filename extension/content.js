@@ -263,41 +263,65 @@
     return el;
   }
 
-  function injectFeedInterruptions() {
+  // Per-post injection handler (called by IntersectionObserver)
+  function processPostInView(post) {
+    if (post.dataset.doomProcessed) return;
     if (sessionIntent === 'specific' || sessionIntent === 'notifications') return;
     if (!settings?.showInterruptions) return;
     const platform = getCurrentPlatform();
     if (!platform || !FEED_SELECTORS[platform]) return;
     const frequency = getInterruptionFrequency();
     if (!frequency.interruption && !frequency.mirror) return;
-    const posts = document.querySelectorAll(FEED_SELECTORS[platform].post);
-    posts.forEach((post) => {
-      if (post.dataset.doomProcessed) return;
-      post.dataset.doomProcessed = 'true';
-      injectionCount++;
-      if (frequency.mirror && injectionCount % frequency.mirror === 0) {
-        post.parentNode?.insertBefore(buildMirrorPost(), post);
-        return;
-      }
-      if (frequency.interruption && injectionCount % frequency.interruption === 0) {
-        post.parentNode?.insertBefore(buildInterruptionElement(), post);
-      }
-    });
+
+    post.dataset.doomProcessed = 'true';
+    injectionCount++;
+    if (frequency.mirror && injectionCount % frequency.mirror === 0) {
+      post.parentNode?.insertBefore(buildMirrorPost(), post);
+    } else if (frequency.interruption && injectionCount % frequency.interruption === 0) {
+      post.parentNode?.insertBefore(buildInterruptionElement(), post);
+    }
   }
 
   function setupFeedObserver() {
     const platform = getCurrentPlatform();
     if (!platform || !FEED_SELECTORS[platform]) return;
-    setTimeout(injectFeedInterruptions, 1000);
-    const feedSelector = FEED_SELECTORS[platform].feed;
-    const feedContainer = document.querySelector(feedSelector);
-    if (feedContainer && !feedObserver) {
-      feedObserver = new MutationObserver(() => injectFeedInterruptions());
-      feedObserver.observe(feedContainer, { childList: true, subtree: true });
-    }
-    // Removed: setInterval(injectFeedInterruptions, 3000)
-    // The MutationObserver above already handles new posts as they are injected.
-    // A polling interval does a full querySelectorAll every 3s for no benefit.
+    const postSelector = FEED_SELECTORS[platform].post;
+
+    // IntersectionObserver: fires when a post scrolls into view (browser-native,
+    // runs off the compositing thread — zero main-thread querySelectorAll cost).
+    // Preload 300px above the viewport so cards appear before the user sees them.
+    const postIO = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) processPostInView(entry.target);
+      });
+    }, { rootMargin: '300px 0px', threshold: 0 });
+
+    // Observe all posts already in the DOM
+    document.querySelectorAll(postSelector).forEach(p => postIO.observe(p));
+
+    // Watch for newly added posts — MutationObserver callback does ONLY
+    // `postIO.observe()` (O(1)) instead of a full querySelectorAll sweep.
+    // subtree: true is needed because posts are nested, but the callback
+    // is now trivially cheap so the overhead is negligible.
+    feedObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        for (const node of m.addedNodes) {
+          if (node.nodeType !== 1) continue;
+          if (node.matches?.(postSelector) && !node.dataset.doomProcessed) {
+            postIO.observe(node);
+          } else {
+            // For wrapper nodes, find posts nested within
+            node.querySelectorAll?.(postSelector).forEach(p => {
+              if (!p.dataset.doomProcessed) postIO.observe(p);
+            });
+          }
+        }
+      }
+    });
+    feedObserver.observe(document.body || document.documentElement, {
+      childList: true,
+      subtree: true
+    });
   }
 
   // ============================================
@@ -349,28 +373,102 @@
   }
 
   // ============================================
+  // UTILITY: THROTTLE
+  // Returns a throttled version of fn that fires at most once per `ms`.
+  // Trailing edge fires too so we never skip the last event.
+  // ============================================
+  function throttle(fn, ms) {
+    let lastCall = 0, timer = null;
+    return function (...args) {
+      const now = Date.now();
+      const remaining = ms - (now - lastCall);
+      if (remaining <= 0) {
+        clearTimeout(timer);
+        timer = null;
+        lastCall = now;
+        fn.apply(this, args);
+      } else {
+        clearTimeout(timer);
+        timer = setTimeout(() => { lastCall = Date.now(); fn.apply(this, args); }, remaining);
+      }
+    };
+  }
+
+  // ============================================
+  // ACTIVITY WORKER — offload scroll/click counting off the main thread
+  // ============================================
+  let activityWorker = null;
+
+  function initActivityWorker() {
+    try {
+      activityWorker = new Worker(chrome.runtime.getURL('activity-worker.js'));
+      // Catch async script-load failures (e.g. WAR mismatch, 404) so they
+      // can never propagate as an uncaught rejection and kill init().
+      activityWorker.onerror = () => { activityWorker = null; };
+      activityWorker.onmessage = ({ data }) => {
+        if (data.type !== 'COUNTS') return;
+        localScrollCount    += data.scrollCount;
+        localVelocityHits   += data.velocityHits;
+        localClickCount     += data.clickCount;
+        localPageLoads      += data.pageLoads;
+      };
+    } catch (_) {
+      activityWorker = null;
+    }
+  }
+
+  // ============================================
   // BEHAVIOR TRACKING
   // ============================================
+  // Fallback scroll counters (used when Worker is unavailable)
+  const SCROLL_COUNT_DISTANCE = 300;
+  let lastCountedScrollY = null;
+  let lastVelocityHitTime = 0;
+
+  // Throttled function for non-velocity scroll work (200ms)
+  // Keeps the hot path of the scroll listener minimal.
+  const onScrollThrottled = throttle(() => {
+    // Grayscale: set feedScrollStartTime once
+    if (!feedScrollStartTime) {
+      const platform = getCurrentPlatform();
+      if (platform) feedScrollStartTime = Date.now();
+    }
+    // Fallback counting (only used when Worker is null)
+    if (!activityWorker) {
+      const nowY = window.scrollY;
+      if (lastCountedScrollY === null) {
+        lastCountedScrollY = nowY;
+      } else if (Math.abs(nowY - lastCountedScrollY) >= SCROLL_COUNT_DISTANCE) {
+        localScrollCount++;
+        lastCountedScrollY = nowY;
+      }
+    }
+  }, 200);
+
   function setupBehaviorTracking() {
     window.addEventListener('scroll', () => {
-      localScrollCount++;
       const now = Date.now();
-      scrollTimes.push(now);
-      if (scrollTimes.length > 10) scrollTimes.shift();
-      if (scrollTimes.length === 10 && (scrollTimes[9] - scrollTimes[0]) < 3000) {
-        localVelocityHits++;
+      const y   = window.scrollY;   // single read per event
+
+      if (activityWorker) {
+        // Worker handles distance counting + velocity detection off main thread
+        activityWorker.postMessage({ type: 'SCROLL', y, time: now });
+      } else {
+        // Inline fallback: velocity tracking stays raw, counting is throttled
+        scrollTimes.push(now);
+        if (scrollTimes.length > 10) scrollTimes.shift();
+        if (scrollTimes.length === 10 && (scrollTimes[9] - scrollTimes[0]) < 3000) {
+          if (now - lastVelocityHitTime >= 1000) { localVelocityHits++; lastVelocityHitTime = now; }
+        }
       }
 
-      // Grayscale Shift: track first scroll time on a feed page.
-      // Guard with !feedScrollStartTime so getCurrentPlatform() (a loop) only
-      // runs once — not on every single scroll event.
-      if (!feedScrollStartTime) {
-        const platform = getCurrentPlatform();
-        if (platform) feedScrollStartTime = Date.now();
-      }
+      onScrollThrottled();
     }, { passive: true });
 
-    document.addEventListener('click', () => localClickCount++);
+    document.addEventListener('click', () => {
+      if (activityWorker) activityWorker.postMessage({ type: 'CLICK' });
+      else localClickCount++;
+    });
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && sessionActive) showSessionEndFeedback();
@@ -382,22 +480,28 @@
   }
 
   function startActivityReporting() {
-    // 4s interval: frequent enough for accurate tracking, light enough to avoid
-    // hammering the background worker and triggering score recalcs every 2s.
+    // 4s interval — flush Worker counts then send accumulated totals to background
     setInterval(() => {
       if (!sessionActive) return;
       if (shortsSessionData.isActive) reportShortFormActivity();
-      if (localScrollCount > 0 || localClickCount > 0 || localPageLoads > 0 || localVelocityHits > 0) {
-        chrome.runtime.sendMessage({
-          type: 'DOOM_ACTIVITY',
-          scrollCount: localScrollCount,
-          clickCount: localClickCount,
-          pageLoads: localPageLoads,
-          velocityHits: localVelocityHits,
-          site: getSiteNameLocal()
-        });
-        localScrollCount = 0; localClickCount = 0; localPageLoads = 0; localVelocityHits = 0;
-      }
+
+      // Flush Worker → triggers onmessage callback which increments locals
+      if (activityWorker) activityWorker.postMessage({ type: 'FLUSH' });
+
+      // Give the Worker message one tick to land before reading locals
+      setTimeout(() => {
+        if (localScrollCount > 0 || localClickCount > 0 || localPageLoads > 0 || localVelocityHits > 0) {
+          chrome.runtime.sendMessage({
+            type: 'DOOM_ACTIVITY',
+            scrollCount: localScrollCount,
+            clickCount: localClickCount,
+            pageLoads: localPageLoads,
+            velocityHits: localVelocityHits,
+            site: getSiteNameLocal()
+          });
+          localScrollCount = 0; localClickCount = 0; localPageLoads = 0; localVelocityHits = 0;
+        }
+      }, 50);
     }, 4000);
   }
 
@@ -648,41 +752,55 @@
 
   function scanAllImagesNow() {
     if (!noPornEnabled) return;
-    document.querySelectorAll('img').forEach(img => {
-      if (!processedImages.has(img)) scanQueue.push(img);
-    });
-    drainScanQueue();
+    // imageIO (set up in startPornScanObserver) handles classification timing.
+    // Just make sure all existing images are registered with it.
+    if (window._dgImageIO) {
+      document.querySelectorAll('img').forEach(img => {
+        if (!processedImages.has(img)) window._dgImageIO.observe(img);
+      });
+    }
   }
 
-  function drainScanQueue() {
-    if (scanRunning || scanQueue.length === 0) return;
-    scanRunning = true;
-    const processBatch = () => {
-      scanQueue.splice(0, 4).forEach(img => classifyImageWithNSFWJS(img));
-      if (scanQueue.length > 0) setTimeout(processBatch, 300);
-      else scanRunning = false;
-    };
-    setTimeout(processBatch, 150);
-  }
+  function drainScanQueue() {} // kept as no-op for any leftover callers
 
   function startPornScanObserver() {
     if (pornScanObserver) return;
 
-    // Debounce: collect mutations for 400ms before draining the queue.
-    // Without this, infinite-scroll sites trigger hundreds of observer callbacks
-    // per second during scrolling (each new lazy-loaded element fires it),
-    // causing constant querySelectorAll('img') calls that stall the main thread.
-    let debounceTimer = null;
+    // IntersectionObserver: only classify images that actually enter the viewport.
+    // On YouTube homepage (50 thumbnails) this processes ~8 visible ones instead of all 50.
+    // Eliminates the scan queue, batch timer, and all that complexity.
+    const imageIO = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const img = entry.target;
+        imageIO.unobserve(img);   // scan once, never again
+        classifyImageWithNSFWJS(img);
+      });
+    }, { rootMargin: '200px', threshold: 0 });
+
+    // Expose on window so scanAllImagesNow() can reach it
+    window._dgImageIO = imageIO;
+
+    // Register images already on the page
+    document.querySelectorAll('img').forEach(img => {
+      if (!processedImages.has(img)) imageIO.observe(img);
+    });
+
+    // Watch for newly added images — callback does ONLY imageIO.observe() (O(1))
+    // No scan queue, no batching, no drainScanQueue timer needed.
     pornScanObserver = new MutationObserver((mutations) => {
-      mutations.forEach(m => m.addedNodes.forEach(node => {
-        if (node.nodeName === 'IMG') { scanQueue.push(node); }
-        else if (node.nodeType === 1) {
-          node.querySelectorAll?.('img').forEach(img => scanQueue.push(img));
+      for (const m of mutations) {
+        for (const node of m.addedNodes) {
+          if (node.nodeType !== 1) continue;
+          if (node.nodeName === 'IMG' && !processedImages.has(node)) {
+            imageIO.observe(node);
+          } else {
+            node.querySelectorAll?.('img').forEach(img => {
+              if (!processedImages.has(img)) imageIO.observe(img);
+            });
+          }
         }
-      }));
-      // Debounce: only actually drain once the mutation burst has settled
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(drainScanQueue, 400);
+      }
     });
     pornScanObserver.observe(document.documentElement, { childList: true, subtree: true });
   }
@@ -851,6 +969,44 @@
   }
 
   // ============================================
+  // MESSAGING — with retry + error handling
+  // ============================================
+
+  // Default settings mirror background.js onInstalled defaults.
+  // Used as fallback when storage hasn't been written yet (race on reload).
+  const DEFAULT_SETTINGS_CONTENT = {
+    enabled: true, showLossMeter: true, showIntentGate: true,
+    showInterruptions: true, showBreathing: true, showFocusTimer: true,
+    showRedirect: true, showNoPorn: true, interventionIntensity: 'medium'
+  };
+
+  /** Send a message to the background service worker.
+   *  Retries up to maxRetries times with increasing delays because MV3
+   *  service workers can be mid-startup when a page fires its first message —
+   *  the callback gets undefined + chrome.runtime.lastError in that case.
+   */
+  async function sendMessage(message, maxRetries = 4, baseDelay = 250) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const response = await new Promise((resolve) => {
+        try {
+          chrome.runtime.sendMessage(message, (res) => {
+            // Read lastError to suppress Chrome's unchecked-error console warning
+            if (chrome.runtime.lastError) { resolve(null); return; }
+            resolve(res);
+          });
+        } catch (_) { resolve(null); }
+      });
+
+      if (response !== null && response !== undefined) return response;
+      if (attempt === maxRetries) return null;
+
+      // Back-off: 250ms, 500ms, 750ms, 1000ms
+      await new Promise(r => setTimeout(r, baseDelay * (attempt + 1)));
+    }
+    return null;
+  }
+
+  // ============================================
   // INIT
   // ============================================
   async function init() {
@@ -858,8 +1014,10 @@
     if (!response?.isDoomSite) return;
 
     const data = await sendMessage({ type: 'GET_STATS' });
-    settings = data?.settings;
-    if (!settings?.enabled) return;
+    // Fall back to defaults if storage race hasn't finished writing yet.
+    // Only bail if the user has EXPLICITLY set enabled: false.
+    settings = data?.settings ?? DEFAULT_SETTINGS_CONTENT;
+    if (settings.enabled === false) return;
 
     const stateResponse = await sendMessage({ type: 'GET_GLOBAL_STATE' });
     if (stateResponse?.success) {
@@ -876,19 +1034,15 @@
 
     setupBehaviorTracking();
     setupUrlChangeDetection();
+    try { initActivityWorker(); } catch (_) { activityWorker = null; }
     startActivityReporting();
 
-    if (settings.showLossMeter) createHUD();
+    if (settings.showLossMeter !== false) createHUD();
     setupFeedObserver();
 
-    // No-Porn scanner
     if (settings.showNoPorn !== false) {
       initNoPornScanner();
     }
-  }
-
-  function sendMessage(message) {
-    return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
   }
 
   // ============================================

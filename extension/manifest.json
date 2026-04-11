@@ -5,7 +5,7 @@
   "description": "Advanced doomscroll detection with streaks, gamification, breathing exercises, focus timer, and deep analytics",
   "permissions": ["tabs", "storage", "scripting", "activeTab", "alarms", "notifications", "offscreen"],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; object-src 'self'"
+    "extension_pages": "script-src 'self'  'wasm-unsafe-eval'; object-src 'self'"
   },
   "host_permissions": [
     "*://*.reddit.com/*",
@@ -62,7 +62,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["css/content.css", "libs/*", "model/*", "offscreen.html"],
+      "resources": ["css/content.css", "libs/*", "model/*", "offscreen.html", "activity-worker.js"],
       "matches": ["<all_urls>"]
     }
   ]

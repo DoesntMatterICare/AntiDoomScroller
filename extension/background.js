@@ -118,12 +118,22 @@ chrome.storage.local.get(['settings'], (data) => {
     customDoomSites = data.settings.customDoomSites;
   }
 });
+// Around line 121 — add disabledSites loading
+let disabledSites = [];  // add this at top near line 60
 
+// In the startup loader around line 121:
+if (data.settings?.customDoomSites) {
+  customDoomSites = data.settings.customDoomSites;
+}
+if (data.settings?.disabledSites) {
+  disabledSites = data.settings.disabledSites;  // ADD THIS
+}
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
 function getAllDoomSites() {
-  return [...DEFAULT_DOOM_SITES, ...customDoomSites];
+  return [...DEFAULT_DOOM_SITES, ...customDoomSites]
+    .filter(site => !disabledSites.includes(site));
 }
 
 function isDoomSite(url) {
@@ -205,15 +215,19 @@ function getLevelProgress(xp) {
 function recalculateGlobalScore() {
   let score = 0;
 
-  // Scroll signals
-  if (globalSessionData.totalScrollCount > 200) score += 6;
-  else if (globalSessionData.totalScrollCount > 100) score += 4;
-  else if (globalSessionData.totalScrollCount > 50) score += 2;
+  // Scroll signals — thresholds calibrated for DISTANCE-based counts
+  // (1 count = 300px scrolled ≈ 2-3 tweets/posts).
+  // Old raw-event thresholds (50/100/200) were trivially hit in seconds;
+  // new thresholds represent meaningful scrolling time.
+  if (globalSessionData.totalScrollCount > 80) score += 6;       // ~24,000px — heavy session
+  else if (globalSessionData.totalScrollCount > 40) score += 4;  // ~12,000px — real doom scroll
+  else if (globalSessionData.totalScrollCount > 15) score += 2;  // ~4,500px  — casual browsing
 
   // Scroll velocity (fast mindless scrolling)
-  if (globalSessionData.scrollVelocityHits > 10) score += 5;
-  else if (globalSessionData.scrollVelocityHits > 5) score += 3;
-  else if (globalSessionData.scrollVelocityHits > 2) score += 1;
+  // Velocity hits are now throttled to 1/sec so these thresholds are looser
+  if (globalSessionData.scrollVelocityHits > 15) score += 5;
+  else if (globalSessionData.scrollVelocityHits > 8) score += 3;
+  else if (globalSessionData.scrollVelocityHits > 3) score += 1;
 
   // Page loads
   if (globalSessionData.totalPageLoads > 20) score += 5;
@@ -252,8 +266,9 @@ function recalculateGlobalScore() {
   else if (sfVideos > 10) score += 4;
   else if (sfVideos > 5) score += 2;
 
-  // Passive consumption (scroll a lot, click nothing)
-  if (globalSessionData.totalScrollCount > 80 && globalSessionData.totalClickCount < 5) {
+  // Passive consumption: scrolled far but clicked almost nothing
+  // 30 distance-counts (9,000px) + no clicks = mindless feed absorption
+  if (globalSessionData.totalScrollCount > 30 && globalSessionData.totalClickCount < 5) {
     score += 4;
   }
 
@@ -661,7 +676,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true, globalScore: globalDoomScore, isRapidReturn, sitesVisited: globalSessionData.sitesVisited });
       break;
     }
-
+    
     case 'TAB_CLOSING': {
       const site = getSiteName(message.url);
       recentSiteClosure[site] = Date.now();
