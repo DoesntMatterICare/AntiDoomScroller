@@ -774,3 +774,126 @@ input:checked + .toggle-slider:before { background: #fff; transform: translateX(
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ============================================
+   FISHEYE / ZOOM HOVER EFFECTS
+   Pure CSS — zero JS, zero performance cost
+   Uses GPU-composited transform, no layout reflow
+   ============================================ */
+
+/* Stat cards — 4-grid overview */
+.stat-card {
+  transition: border-color 0.2s, transform 0.18s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s ease !important;
+  cursor: default;
+}
+.stat-card:hover {
+  border-color: var(--red) !important;
+  transform: scale(1.09) !important;
+  box-shadow: 0 4px 18px rgba(220,38,38,0.2) !important;
+  position: relative;
+  z-index: 2;
+}
+
+/* Platform breakdown rows */
+.platform-row {
+  transition: transform 0.16s cubic-bezier(0.34,1.56,0.64,1), background 0.16s ease;
+  border-radius: 6px;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+.platform-row:hover {
+  transform: scaleX(1.025) scaleY(1.04);
+  background: rgba(220,38,38,0.06);
+}
+.platform-row:hover .platform-bar-fill {
+  filter: brightness(1.5);
+  transition: filter 0.16s ease;
+}
+.platform-row:hover .platform-pct {
+  color: var(--red);
+  transition: color 0.16s ease;
+}
+
+/* Badge items — earned only */
+.badge-item {
+  transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s ease, border-color 0.18s ease !important;
+}
+.badge-item.earned:hover {
+  transform: scale(1.13) !important;
+  box-shadow: 0 6px 20px rgba(220,38,38,0.25) !important;
+  border-color: var(--red) !important;
+}
+
+/* Action buttons — Breathe / Reset Day */
+.action-btn {
+  transition: transform 0.16s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.16s ease, filter 0.16s ease !important;
+}
+.action-btn:hover {
+  transform: scale(1.06) !important;
+  box-shadow: 0 4px 14px rgba(220,38,38,0.22) !important;
+  filter: brightness(1.15) !important;
+}
+
+/* Streak card and XP card */
+.streak-card,
+.xp-card {
+  transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s ease;
+}
+.streak-card:hover,
+.xp-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 14px rgba(220,38,38,0.15);
+}
+
+/* Analytics cards */
+.analytics-card {
+  transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s ease;
+}
+.analytics-card:hover {
+  transform: scale(1.012);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+/* Heatmap cells — existing hover improved */
+.heatmap-cell {
+  transition: transform 0.14s cubic-bezier(0.34,1.56,0.64,1), filter 0.14s ease !important;
+}
+.heatmap-cell:hover {
+  transform: scaleY(1.5) scaleX(1.3) !important;
+  filter: brightness(1.6) !important;
+}
+
+/* Site toggle rows */
+.site-item {
+  transition: transform 0.16s cubic-bezier(0.34,1.56,0.64,1), background 0.16s ease;
+  border-radius: 6px;
+}
+.site-item:hover {
+  transform: scaleX(1.02);
+  background: rgba(220,38,38,0.04);
+}
+
+/* Intensity buttons */
+.intensity-btn {
+  transition: transform 0.16s cubic-bezier(0.34,1.56,0.64,1), border-color 0.16s ease, box-shadow 0.16s ease !important;
+}
+.intensity-btn:hover {
+  transform: scale(1.07) !important;
+  box-shadow: 0 2px 10px rgba(220,38,38,0.15) !important;
+}
+
+/* Score ring container — subtle pulse on hover */
+.score-ring-container {
+  transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
+}
+.score-ring-container:hover {
+  transform: scale(1.04);
+}
+
+/* Tab buttons */
+.tab-btn {
+  transition: color 0.2s, background 0.2s, transform 0.16s cubic-bezier(0.34,1.56,0.64,1) !important;
+}
+.tab-btn:not(.active):hover {
+  transform: scale(1.05) !important;
+}

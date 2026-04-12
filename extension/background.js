@@ -876,10 +876,30 @@ setInterval(async () => {
 
   // Update per-site stats
   if (!stats.siteStats) stats.siteStats = {};
+  const now = Date.now();
+
+  // Build per-site minutes from active tabSessions
+  const siteMinutesMap = {};
+  Object.values(tabSessions).forEach(session => {
+    if (!session?.site || !session?.startTime) return;
+    const site = session.site;
+    const mins = Math.floor((now - session.startTime) / 60000);
+    if (!siteMinutesMap[site] || mins > siteMinutesMap[site]) siteMinutesMap[site] = mins;
+  });
+
+  // Apply to siteStats for all visited sites
+  const siteCount = Math.max(globalSessionData.sitesVisited.length, 1);
   globalSessionData.sitesVisited.forEach(site => {
     if (!stats.siteStats[site]) stats.siteStats[site] = { minutes: 0, sessions: 0 };
     stats.siteStats[site].sessions = Math.max(stats.siteStats[site].sessions, 1);
+    if (siteMinutesMap[site] !== undefined && siteMinutesMap[site] > 0) {
+      stats.siteStats[site].minutes = siteMinutesMap[site];
+    } else if (stats.siteStats[site].minutes === 0 && sessionMinutes > 0) {
+      // fallback: distribute evenly if tabSessions lost data (e.g. SW restart)
+      stats.siteStats[site].minutes = Math.max(1, Math.floor(sessionMinutes / siteCount));
+    }
   });
+
 
   stats.xp = calculateXPFromStats(stats);
   stats.level = getLevel(stats.xp);
