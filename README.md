@@ -36,7 +36,12 @@ The popup provides a four-tab interface covering your weekly doom score chart, a
 <br clear="all" />
 ### Supported Platforms
 DoomGuard tracks 12 platforms by default: Reddit, Twitter/X, Instagram, YouTube, Facebook, TikTok, LinkedIn, Pinterest, Twitch, Snapchat, Threads, and 9gag. You can add or remove any site from the Sites tab in the popup, with support for unlimited custom domains.
-<img width="492" height="667" alt="image" src="https://github.com/user-attachments/assets/22cc880e-3c11-41fc-96a2-e2d76534b546" />
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/22cc880e-3c11-41fc-96a2-e2d76534b546" width="490" alt="DoomGuard Dashboard Preview" />
+</div>
+
+<br clear="all" />
+<br />
 
 ---
 
