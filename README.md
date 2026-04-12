@@ -76,4 +76,4 @@ MIT License. Free to use, modify, and distribute.
 
 ## Author
 
-Built by [@rehan_7009](https://github.com/rehan_7009) — first-year B.Tech student at Vardhaman College of Engineering, Hyderabad.
+Built by [@DoesntMatterICare) — first-year B.Tech student at Vardhaman College of Engineering, Hyderabad.
