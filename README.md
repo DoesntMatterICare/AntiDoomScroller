@@ -9,11 +9,15 @@ DoomGuard is a lightweight, privacy-first Chrome extension that detects and inte
 
 ### Intelligent Local Detection
 DoomGuard tracks behavioral patterns rather than just time spent on a page. It monitors scroll velocity to detect mindless scrolling, recognizes doom-loop patterns (bouncing between the same two tabs repeatedly), flags binge sessions, and applies a 2.5x late-night multiplier after hours when doomscrolling is most likely.
-<img width="497" height="767" alt="image" src="https://github.com/user-attachments/assets/f6c39d85-dfa1-48a4-ae0a-64c2aad64588" />
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/f6c39d85-dfa1-48a4-ae0a-64c2aad64588" width="500" alt="DoomGuard Achievements Preview" />
+</p>
 
 ### Interventions
 When a doom session is detected, DoomGuard can trigger one of three interventions depending on your settings. The 4-7-8 Breathing Exercise presents an animated breathing ring with a guided countdown. The Pomodoro Focus Timer launches a 25-minute focus session with a live HUD display. The Redirect Modal prompts you to visit a productive destination — Wikipedia, Khan Academy, GitHub, or Duolingo — after a configurable time threshold.
-<img width="516" height="487" alt="image" src="https://github.com/user-attachments/assets/84802e8e-acf3-4f51-9470-edc483330cae" />
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/f6c39d85-dfa1-48a4-ae0a-64c2aad64588" width="500" alt="DoomGuard Achievements Preview" />
+</div>
 
 ### Gamification
 DoomGuard includes an XP system with 10 levels, 12 unlockable badges, and a daily clean-day streak counter. All progress is persisted locally using Chrome storage.
