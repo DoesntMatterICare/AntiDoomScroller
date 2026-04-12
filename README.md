@@ -29,8 +29,11 @@ A minimizable SVG ring pill sits unobtrusively on tracked pages and expands into
 
 ### Analytics
 The popup provides a four-tab interface covering your weekly doom score chart, a 24-hour hourly heatmap, per-platform breakdown, and best and worst days at a glance.
-<img width="497" height="767" alt="image" src="https://github.com/user-attachments/assets/4902f521-befb-4f11-8041-eb7060b94d5e" />
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/4902f521-befb-4f11-8041-eb7060b94d5e" width="500" />
+</p>
 
+<br clear="all" />
 ### Supported Platforms
 DoomGuard tracks 12 platforms by default: Reddit, Twitter/X, Instagram, YouTube, Facebook, TikTok, LinkedIn, Pinterest, Twitch, Snapchat, Threads, and 9gag. You can add or remove any site from the Sites tab in the popup, with support for unlimited custom domains.
 <img width="492" height="667" alt="image" src="https://github.com/user-attachments/assets/22cc880e-3c11-41fc-96a2-e2d76534b546" />
