@@ -9,21 +9,27 @@ DoomGuard is a lightweight, privacy-first Chrome extension that detects and inte
 
 ### Intelligent Local Detection
 DoomGuard tracks behavioral patterns rather than just time spent on a page. It monitors scroll velocity to detect mindless scrolling, recognizes doom-loop patterns (bouncing between the same two tabs repeatedly), flags binge sessions, and applies a 2.5x late-night multiplier after hours when doomscrolling is most likely.
+<img width="497" height="767" alt="image" src="https://github.com/user-attachments/assets/f6c39d85-dfa1-48a4-ae0a-64c2aad64588" />
 
 ### Interventions
 When a doom session is detected, DoomGuard can trigger one of three interventions depending on your settings. The 4-7-8 Breathing Exercise presents an animated breathing ring with a guided countdown. The Pomodoro Focus Timer launches a 25-minute focus session with a live HUD display. The Redirect Modal prompts you to visit a productive destination — Wikipedia, Khan Academy, GitHub, or Duolingo — after a configurable time threshold.
+<img width="516" height="487" alt="image" src="https://github.com/user-attachments/assets/84802e8e-acf3-4f51-9470-edc483330cae" />
 
 ### Gamification
 DoomGuard includes an XP system with 10 levels, 12 unlockable badges, and a daily clean-day streak counter. All progress is persisted locally using Chrome storage.
+<img width="493" height="316" alt="image" src="https://github.com/user-attachments/assets/6a9fde1c-7fcc-46d6-8d1d-e56a3d4ab063" />
 
 ### Real-Time HUD
 A minimizable SVG ring pill sits unobtrusively on tracked pages and expands into a full widget with breathe and focus buttons available inline, giving you immediate access to interventions without opening the popup.
+<img width="320" height="345" alt="image" src="https://github.com/user-attachments/assets/bb7fef2e-0b0f-4d58-8857-07cf0f8bf45e" />
 
 ### Analytics
 The popup provides a four-tab interface covering your weekly doom score chart, a 24-hour hourly heatmap, per-platform breakdown, and best and worst days at a glance.
+<img width="497" height="767" alt="image" src="https://github.com/user-attachments/assets/4902f521-befb-4f11-8041-eb7060b94d5e" />
 
 ### Supported Platforms
 DoomGuard tracks 12 platforms by default: Reddit, Twitter/X, Instagram, YouTube, Facebook, TikTok, LinkedIn, Pinterest, Twitch, Snapchat, Threads, and 9gag. You can add or remove any site from the Sites tab in the popup, with support for unlimited custom domains.
+<img width="492" height="667" alt="image" src="https://github.com/user-attachments/assets/22cc880e-3c11-41fc-96a2-e2d76534b546" />
 
 ---
 
