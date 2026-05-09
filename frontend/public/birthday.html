@@ -1,0 +1,2259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>Happy Birthday Akbar 🎂 — Tear to Reveal</title>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+  :root {
+    --yellow: #FFD600;
+    --pink: #FF3CAC;
+    --orange: #FF6B35;
+    --green: #06D6A0;
+    --blue: #118AB2;
+    --dark: #1a1a2e;
+    --light: #fff8f0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background: var(--dark);
+    color: var(--light);
+    font-family: 'Nunito', sans-serif;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    perspective: 1400px;
+    perspective-origin: 50% 35%;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* === 3D STAR / PARTICLE FIELD === */
+  #star-field {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    transform-style: preserve-3d;
+    perspective: 800px;
+  }
+  .star {
+    position: absolute;
+    border-radius: 50%;
+    background: #fff;
+    will-change: transform, opacity;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .star.s-yellow { color: var(--yellow); background: var(--yellow); }
+  .star.s-pink   { color: var(--pink);   background: var(--pink); }
+  .star.s-cyan   { color: #5ad7ff;       background: #5ad7ff; }
+  .star.s-purple { color: #b488ff;       background: #b488ff; }
+
+  @keyframes starDrift {
+    0%   { transform: translate3d(var(--sx), var(--sy), -800px) rotate(0deg); opacity: 0; }
+    8%   { opacity: var(--so, 0.9); }
+    92%  { opacity: var(--so, 0.9); }
+    100% { transform: translate3d(var(--ex), var(--ey), 600px)  rotate(360deg); opacity: 0; }
+  }
+
+  /* === AURORA BG GLOW === */
+  #aurora {
+    position: fixed;
+    inset: -10%;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(40% 50% at 18% 22%, rgba(255,60,172,0.22) 0%, transparent 60%),
+      radial-gradient(45% 55% at 82% 18%, rgba(255,214,0,0.18) 0%, transparent 60%),
+      radial-gradient(60% 60% at 50% 95%, rgba(123,44,191,0.25) 0%, transparent 65%),
+      radial-gradient(35% 40% at 90% 80%, rgba(6,214,160,0.18) 0%, transparent 60%);
+    filter: blur(40px) saturate(140%);
+    animation: auroraDrift 18s ease-in-out infinite;
+    transform: translateZ(-300px);
+  }
+  @keyframes auroraDrift {
+    0%, 100% { transform: translateZ(-300px) translate(0, 0) scale(1.0); opacity: 0.95; }
+    33%      { transform: translateZ(-300px) translate(2%, -1%) scale(1.05); opacity: 1; }
+    66%      { transform: translateZ(-300px) translate(-2%, 2%) scale(0.95); opacity: 0.85; }
+  }
+
+  /* === STAGE / SPA === */
+  #stage {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+  }
+  .stg-section {
+    position: absolute !important;
+    inset: 0 !important;
+    overflow-y: auto;
+    overflow-x: hidden;
+    z-index: 1;
+    visibility: hidden;
+    pointer-events: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .stg-section.below {
+    /* peeks through the cloth as it tears */
+    z-index: 1;
+    visibility: visible;
+    pointer-events: none;
+  }
+  .stg-section.front {
+    /* the section being captured and shown as cloth (rendered briefly off-screen-equivalent) */
+    z-index: 2;
+    visibility: visible;
+    pointer-events: none;
+  }
+  .stg-section.live {
+    z-index: 3;
+    visibility: visible;
+    pointer-events: auto;
+  }
+  .stg-section::-webkit-scrollbar { width: 6px; }
+  .stg-section::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+  /* === CLOTH CANVAS === */
+  #cloth-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 50;
+    cursor: grab;
+    touch-action: none;
+    transition: opacity 0.7s ease, transform 1.2s cubic-bezier(.2,.7,.3,1);
+    transform-style: preserve-3d;
+    will-change: transform, opacity;
+  }
+  #cloth-canvas:active { cursor: grabbing; }
+  #cloth-canvas.gone { pointer-events: none; }
+  #cloth-canvas.falling {
+    transform: perspective(1400px) rotateX(8deg) translateZ(60px) scale(1.04);
+    filter: drop-shadow(0 30px 50px rgba(0,0,0,0.6));
+  }
+
+  /* === TEAR HUD === */
+  #tear-hud {
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  #tear-hud.hide { opacity: 0; transform: translate(-50%, -16px); }
+  .tear-pill {
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #fff;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border: 1px solid rgba(255,255,255,0.12);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .tear-pill .key {
+    color: var(--yellow);
+    margin-right: 6px;
+  }
+  .tear-progress-wrap {
+    width: 220px;
+    height: 6px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .tear-progress {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--pink), var(--yellow));
+    border-radius: 999px;
+    transition: width 0.15s ease;
+    box-shadow: 0 0 12px rgba(255,214,0,0.6);
+  }
+
+  /* === SECTION DOTS === */
+  #section-dots {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 60;
+    pointer-events: none;
+  }
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.18);
+    transition: all 0.3s ease;
+  }
+  .dot.active {
+    background: var(--yellow);
+    transform: scale(1.6);
+    box-shadow: 0 0 14px rgba(255,214,0,0.8);
+  }
+  .dot.done { background: var(--green); }
+
+  /* === FINAL CARD (after wish) === */
+  #final-card {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    pointer-events: auto;
+    background: radial-gradient(ellipse at center, rgba(45,27,105,0.7) 0%, rgba(0,0,0,0.85) 70%);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  #final-card.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.96);
+  }
+  .final-emoji {
+    font-size: 5rem;
+    transform-style: preserve-3d;
+    animation: cakeRotate 6s ease-in-out infinite;
+    filter: drop-shadow(0 18px 30px rgba(0,0,0,0.55));
+    position: relative;
+  }
+  .final-emoji::before {
+    content: '';
+    position: absolute;
+    inset: -40px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, var(--yellow), var(--pink), var(--orange), var(--yellow));
+    filter: blur(28px);
+    opacity: 0.5;
+    z-index: -1;
+    animation: wishGlow 5s linear infinite;
+    transform: translateZ(-60px);
+  }
+  @keyframes cakeRotate {
+    0%,100% { transform: perspective(900px) rotateY(-15deg) rotateX(8deg) translateZ(0); }
+    50%     { transform: perspective(900px) rotateY( 15deg) rotateX(-4deg) translateZ(40px); }
+  }
+  .final-title {
+    font-family: 'Bangers', cursive;
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    color: var(--yellow);
+    letter-spacing: 3px;
+    text-shadow: 4px 4px 0 var(--orange);
+  }
+  .final-sub {
+    color: rgba(255,255,255,0.8);
+    font-size: 1.05rem;
+    letter-spacing: 1px;
+  }
+  #replay-btn {
+    background: linear-gradient(135deg, var(--pink), var(--orange));
+    color: #fff;
+    padding: 14px 32px;
+    border-radius: 999px;
+    font-family: 'Bangers', cursive;
+    font-size: 1.4rem;
+    letter-spacing: 3px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 12px 40px rgba(255,60,172,0.55), inset 0 0 0 2px rgba(255,255,255,0.15);
+    transition: transform 0.3s, box-shadow 0.3s;
+    margin-top: 12px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #replay-btn:hover { transform: scale(1.05); box-shadow: 0 16px 50px rgba(255,60,172,0.75); }
+  #replay-btn:active { transform: scale(0.97); }
+
+  /* === SKIP BUTTON (top-right) === */
+  #skip-btn {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 60;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(6px);
+    color: rgba(255,255,255,0.65);
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.12);
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 700;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #skip-btn:hover { color: var(--yellow); border-color: var(--yellow); }
+
+  /* === FINGER HINT (one-time) === */
+  #finger-hint {
+    position: fixed;
+    left: 50%;
+    top: 55%;
+    transform: translate(-50%, -50%);
+    z-index: 55;
+    pointer-events: none;
+    font-size: 3rem;
+    animation: fingerSwipe 1.6s ease-in-out infinite;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.6));
+    transition: opacity 0.4s;
+  }
+  #finger-hint.hide { opacity: 0; }
+  @keyframes fingerSwipe {
+    0%   { transform: translate(-90px, -50%) rotate(-12deg); opacity: 0.4; }
+    35%  { transform: translate(-50%, -50%) rotate(0deg);    opacity: 1; }
+    70%  { transform: translate(60px, -50%)  rotate(12deg);  opacity: 1; }
+    100% { transform: translate(90px, -50%)  rotate(18deg);  opacity: 0; }
+  }
+
+  /* === ORIGINAL STYLES PRESERVED === */
+  .watch-card {
+    background: #16213e;
+    border-radius: 20px;
+    padding: 1.5rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    transition: transform 0.55s cubic-bezier(.2,.8,.3,1), box-shadow 0.4s ease;
+    transform-style: preserve-3d;
+    box-shadow: 0 18px 40px rgba(0,0,0,0.4);
+    will-change: transform;
+  }
+  .watch-card:hover {
+    transform: perspective(900px) rotateY(14deg) rotateX(-6deg) translateZ(30px) translateY(-4px);
+    box-shadow: 0 30px 60px rgba(0,0,0,0.55), 0 0 40px rgba(255,214,0,0.15);
+  }
+  .watch-face {
+    border-radius: 50%;
+    width: 110px;
+    height: 110px;
+    margin: 0 auto 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.03), 0 12px 30px rgba(0,0,0,0.4);
+    transform-style: preserve-3d;
+    transform: translateZ(20px);
+    transition: transform 0.5s ease;
+    position: relative;
+  }
+  .watch-face::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent, rgba(255,214,0,0.35), transparent 30%);
+    filter: blur(8px);
+    opacity: 0;
+    z-index: -1;
+    transition: opacity 0.5s ease;
+    animation: watchGlow 6s linear infinite;
+  }
+  .watch-card:hover .watch-face::after { opacity: 1; }
+  .watch-card:hover .watch-face { transform: translateZ(35px) rotateZ(-4deg); }
+  @keyframes watchGlow {
+    0%   { transform: rotate(0); }
+    100% { transform: rotate(360deg); }
+  }
+  .watch-dial {
+    border-radius: 50%;
+    width: 80px;
+    height: 80px;
+    border: 2px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .watch-brand { font-size: 0.55rem; letter-spacing: 2px; font-weight: 700; text-transform: uppercase; }
+  .watch-hand {
+    position: absolute;
+    bottom: 50%;
+    left: 50%;
+    transform-origin: bottom center;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.8);
+  }
+  .watch-hand.hour { width: 2px; height: 22px; margin-left: -1px; }
+  .watch-hand.min  { width: 1.5px; height: 30px; margin-left: -0.75px; }
+  .watch-name { font-weight: 700; font-size: 1rem; color: rgba(255,255,255,0.9); margin-bottom: 4px; }
+  .watch-price { font-family: 'Bangers', cursive; font-size: 1.4rem; color: var(--yellow); margin-bottom: 6px; }
+  .watch-caption { font-size: 0.85rem; color: rgba(255,255,255,0.5); line-height: 1.5; margin-bottom: 10px; }
+  .watch-verdict {
+    font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--pink); opacity: 0.7;
+  }
+
+  .ittar-card {
+    background: #100d1f;
+    border-radius: 16px;
+    padding: 1.5rem;
+    border: 1px solid rgba(255,60,172,0.15);
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+    transition: transform 0.5s cubic-bezier(.2,.8,.3,1), border-color 0.3s ease, box-shadow 0.4s ease;
+    transform-style: preserve-3d;
+    box-shadow: 0 14px 30px rgba(0,0,0,0.4);
+    will-change: transform;
+  }
+  .ittar-card:hover {
+    border-color: rgba(255,60,172,0.55);
+    transform: perspective(900px) rotateY(-8deg) rotateX(4deg) translateZ(25px);
+    box-shadow: 0 28px 50px rgba(255,60,172,0.22), 0 0 30px rgba(255,60,172,0.1);
+  }
+  .ittar-bottle {
+    font-size: 2.5rem;
+    flex-shrink: 0;
+    transform: translateZ(40px);
+    animation: bottleFloat 4s ease-in-out infinite;
+    filter: drop-shadow(0 8px 12px rgba(0,0,0,0.4));
+  }
+  @keyframes bottleFloat {
+    0%,100% { transform: translateZ(40px) rotate(-6deg); }
+    50%     { transform: translateZ(60px) rotate(6deg); }
+  }
+  .ittar-name { font-weight: 700; font-size: 1.05rem; color: var(--pink); margin-bottom: 0.4rem; }
+  .ittar-desc { font-size: 0.88rem; color: rgba(255,255,255,0.55); line-height: 1.6; margin-bottom: 0.75rem; }
+  .ittar-stats { display: flex; flex-direction: column; gap: 4px; }
+  .ittar-stat { display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; gap: 1rem; }
+  .stat-label { color: rgba(255,255,255,0.35); }
+  .stat-val { font-weight: 700; }
+  .stat-val.danger { color: var(--pink); }
+  .stat-val.good { color: var(--green); }
+  .stat-val.mid { color: var(--yellow); }
+
+  .day-box {
+    background: #16213e;
+    border-radius: 12px;
+    padding: 0.85rem 0.5rem;
+    text-align: center;
+    cursor: default;
+    border: 1px solid rgba(255,255,255,0.08);
+    transition: transform 0.45s cubic-bezier(.2,.8,.3,1), border-color 0.3s ease, box-shadow 0.4s ease;
+    transform-style: preserve-3d;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+    will-change: transform;
+  }
+  .day-box:hover {
+    border-color: var(--orange);
+    transform: perspective(700px) rotateX(-15deg) translateZ(35px) translateY(-6px);
+    box-shadow: 0 25px 40px rgba(255,107,53,0.3);
+  }
+  .day-box.bike {
+    background: linear-gradient(135deg,#2d1b1a,#1a0f0f);
+    border-color: var(--pink);
+    box-shadow: 0 10px 24px rgba(255,60,172,0.35);
+  }
+  .day-box.bike:hover {
+    transform: perspective(700px) rotateX(-15deg) rotateY(8deg) translateZ(50px) translateY(-8px);
+    box-shadow: 0 30px 50px rgba(255,60,172,0.5);
+  }
+  .day-box.bike .day-icon { animation: revvup 0.8s ease-in-out infinite alternate; }
+  @keyframes revvup { from { transform: rotate(-8deg); } to { transform: rotate(8deg); } }
+  .day-icon { font-size: 1.6rem; margin-bottom: 0.3rem; }
+  .day-label { font-size: 0.7rem; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+
+  canvas#confetti {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 80;
+  }
+
+  /* HERO */
+  .hero {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+    background: radial-gradient(ellipse at center, #2d1b69 0%, #1a1a2e 70%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  .emoji-float {
+    font-size: 3rem;
+    position: absolute;
+    animation: floatUp 6s ease-in-out infinite;
+    opacity: 0.85;
+    transform-style: preserve-3d;
+    will-change: transform;
+    text-shadow: 0 8px 20px rgba(0,0,0,0.5);
+    filter: drop-shadow(0 6px 12px rgba(0,0,0,0.45));
+  }
+  .emoji-float.depth-1 { animation-name: float3D-1; font-size: 2.2rem; }
+  .emoji-float.depth-2 { animation-name: float3D-2; font-size: 3rem; }
+  .emoji-float.depth-3 { animation-name: float3D-3; font-size: 4rem; }
+
+  @keyframes floatUp {
+    0%,100% { transform: translateY(0) rotate(-5deg); }
+    50% { transform: translateY(-20px) rotate(5deg); }
+  }
+  @keyframes float3D-1 {
+    0%,100% { transform: translate3d(0, 0, -120px) rotateY(0) rotateX(0) scale(1); opacity: 0.5; }
+    50%     { transform: translate3d(8px, -18px, -80px) rotateY(15deg) rotateX(8deg) scale(1.05); opacity: 0.7; }
+  }
+  @keyframes float3D-2 {
+    0%,100% { transform: translate3d(0, 0, 0) rotateY(0) rotateX(0) scale(1); opacity: 0.85; }
+    50%     { transform: translate3d(-10px, -25px, 40px) rotateY(-15deg) rotateX(-6deg) scale(1.08); opacity: 1; }
+  }
+  @keyframes float3D-3 {
+    0%,100% { transform: translate3d(0, 0, 80px) rotateY(0) rotateX(0) scale(1); opacity: 1; }
+    50%     { transform: translate3d(12px, -30px, 140px) rotateY(20deg) rotateX(10deg) scale(1.12); opacity: 1; }
+  }
+
+  .hero-tag {
+    background: var(--pink);
+    color: white;
+    font-weight: 900;
+    font-size: 0.85rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 6px 20px;
+    border-radius: 50px;
+    margin-bottom: 1.5rem;
+    display: inline-block;
+  }
+
+  .hero h1 {
+    font-family: 'Bangers', cursive;
+    font-size: clamp(4rem, 12vw, 9rem);
+    line-height: 0.9;
+    color: var(--yellow);
+    text-shadow:
+      2px 2px 0 var(--orange),
+      4px 4px 0 var(--orange),
+      6px 6px 0 var(--orange),
+      8px 8px 0 var(--orange),
+      10px 10px 0 rgba(255,60,172,0.55),
+      12px 12px 0 rgba(255,60,172,0.4),
+      14px 14px 18px rgba(0,0,0,0.55);
+    letter-spacing: 2px;
+    margin-bottom: 1rem;
+    animation: heroFloat 4s ease-in-out infinite;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+
+  @keyframes heroFloat {
+    0%,100% { transform: perspective(800px) rotateX(6deg) rotateY(-2deg) rotateZ(-1deg) translateZ(0); }
+    50%     { transform: perspective(800px) rotateX(2deg) rotateY(2deg)  rotateZ(1deg)  translateZ(20px); }
+  }
+  @keyframes wobble {
+    0%,100% { transform: rotate(-1deg) scale(1); }
+    50% { transform: rotate(1deg) scale(1.02); }
+  }
+
+  .hero-sub {
+    font-size: clamp(1.1rem, 3vw, 1.5rem);
+    color: rgba(255,255,255,0.8);
+    max-width: 600px;
+    line-height: 1.5;
+    margin-bottom: 2rem;
+  }
+
+  .scroll-hint {
+    margin-top: 2rem;
+    color: rgba(255,255,255,0.4);
+    font-size: 0.9rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    animation: bounce 1.5s ease-in-out infinite;
+  }
+  @keyframes bounce {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(8px); }
+  }
+
+  .countdown-section {
+    padding: 5rem 2rem;
+    text-align: center;
+    background: #0f0f23;
+    min-height: 100%;
+  }
+
+  .section-title {
+    font-family: 'Bangers', cursive;
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    margin-bottom: 3rem;
+    letter-spacing: 2px;
+  }
+
+  .countdown-grid {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .cd-box {
+    background: linear-gradient(135deg, var(--pink), var(--orange));
+    border-radius: 16px;
+    padding: 2rem 2.5rem;
+    min-width: 120px;
+    position: relative;
+    box-shadow:
+      0 0 30px rgba(255,60,172,0.4),
+      0 18px 40px rgba(0,0,0,0.45),
+      inset 0 -4px 0 rgba(0,0,0,0.18),
+      inset 0 4px 0 rgba(255,255,255,0.12);
+    transform-style: preserve-3d;
+    animation: cdFloat 6s ease-in-out infinite;
+    will-change: transform;
+  }
+  .cd-box:nth-child(1) { animation-delay: 0s; }
+  .cd-box:nth-child(2) { animation-delay: 0.6s; }
+  .cd-box:nth-child(3) { animation-delay: 1.2s; }
+  .cd-box:nth-child(4) { animation-delay: 1.8s; }
+  @keyframes cdFloat {
+    0%,100% { transform: perspective(700px) rotateY(-6deg) rotateX(4deg) translateZ(0); }
+    50%     { transform: perspective(700px) rotateY( 8deg) rotateX(-2deg) translateZ(28px); }
+  }
+  .cd-box::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.35), transparent 50%);
+    pointer-events: none;
+  }
+
+  .cd-box .num {
+    font-family: 'Bangers', cursive;
+    font-size: clamp(3rem, 8vw, 5rem);
+    line-height: 1;
+    display: block;
+  }
+
+  .cd-box .label {
+    font-size: 0.8rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    opacity: 0.9;
+    margin-top: 4px;
+    display: block;
+  }
+
+  .birthday-msg {
+    font-family: 'Bangers', cursive;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    color: var(--yellow);
+    text-shadow: 4px 4px 0 var(--orange);
+    animation: pulse 0.5s ease-in-out infinite alternate;
+    display: none;
+  }
+  @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.05); } }
+
+  .roast-section {
+    padding: 5rem 2rem;
+    background: var(--dark);
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .roast-section .section-title { color: var(--yellow); }
+
+  .roast-card {
+    background: #16213e;
+    border-radius: 20px;
+    padding: 2rem 2.5rem;
+    margin-bottom: 1.5rem;
+    border-left: 6px solid var(--pink);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.5s cubic-bezier(.2,.8,.3,1), box-shadow 0.4s ease;
+    cursor: default;
+    transform-style: preserve-3d;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
+    will-change: transform;
+  }
+
+  .roast-card:hover {
+    transform: perspective(900px) rotateX(-4deg) rotateY(3deg) translateZ(40px) scale(1.02);
+    box-shadow: 0 35px 70px rgba(255,60,172,0.25), 0 0 50px rgba(255,214,0,0.12), inset 0 1px 0 rgba(255,255,255,0.07);
+  }
+  .roast-card:nth-child(2):hover { transform: perspective(900px) rotateX(-3deg) rotateY(-3deg) translateZ(40px) scale(1.02); }
+  .roast-card:nth-child(3):hover { transform: perspective(900px) rotateX(3deg) rotateY(2deg) translateZ(40px) scale(1.02); }
+  .roast-card:nth-child(2) { border-color: var(--yellow); }
+  .roast-card:nth-child(3) { border-color: var(--green); }
+
+  .roast-card .roast-emoji {
+    font-size: 3rem;
+    position: absolute;
+    right: 1.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.25;
+  }
+
+  .roast-card h3 {
+    font-family: 'Bangers', cursive;
+    font-size: 1.8rem;
+    letter-spacing: 1px;
+    margin-bottom: 0.5rem;
+    color: var(--yellow);
+  }
+
+  .roast-card p {
+    font-size: 1.05rem;
+    color: rgba(255,255,255,0.85);
+    line-height: 1.6;
+  }
+
+  .photos-section {
+    padding: 5rem 2rem;
+    background: #0f0f23;
+    text-align: center;
+    min-height: 100%;
+  }
+
+  .photos-section .section-title { color: var(--green); }
+
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .photo-placeholder {
+    aspect-ratio: 1;
+    border-radius: 16px;
+    border: 3px dashed rgba(255,255,255,0.2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.3);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+    background: #16213e;
+  }
+
+  .photo-placeholder:hover {
+    border-color: var(--pink);
+    color: var(--pink);
+    transform: scale(1.03);
+  }
+
+  .photo-placeholder .ph-emoji { font-size: 2.5rem; margin-bottom: 0.5rem; }
+  .photo-placeholder img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 13px;
+  }
+
+  .upload-hint {
+    margin-top: 1.5rem;
+    color: rgba(255,255,255,0.4);
+    font-size: 0.9rem;
+  }
+
+  .wish-section {
+    padding: 5rem 2rem;
+    background: linear-gradient(135deg, #1a1a2e, #2d1b69);
+    text-align: center;
+    min-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .wish-card {
+    max-width: 700px;
+    margin: 0 auto;
+    background: rgba(255,255,255,0.05);
+    border-radius: 24px;
+    padding: 3rem;
+    border: 1px solid rgba(255,214,0,0.3);
+    box-shadow: 0 0 60px rgba(255,214,0,0.1), 0 30px 60px rgba(0,0,0,0.5);
+    position: relative;
+    transform-style: preserve-3d;
+    animation: wishFloat 7s ease-in-out infinite;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    will-change: transform;
+  }
+  .wish-card::before {
+    content: '';
+    position: absolute;
+    inset: -20px;
+    border-radius: 32px;
+    background: conic-gradient(from 0deg,
+      var(--yellow), var(--pink), var(--orange),
+      var(--green), var(--blue), var(--yellow));
+    filter: blur(28px);
+    opacity: 0.45;
+    z-index: -1;
+    animation: wishGlow 9s linear infinite;
+    transform: translateZ(-40px);
+  }
+  @keyframes wishGlow { 0% { transform: translateZ(-40px) rotate(0); } 100% { transform: translateZ(-40px) rotate(360deg); } }
+  @keyframes wishFloat {
+    0%,100% { transform: perspective(900px) rotateX(2deg) rotateY(-2deg) translateZ(0); }
+    50%     { transform: perspective(900px) rotateX(-2deg) rotateY(3deg) translateZ(20px); }
+  }
+
+  .wish-card .wish-emoji {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    display: block;
+    animation: wishHand 3.5s ease-in-out infinite;
+    filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5));
+    transform-style: preserve-3d;
+  }
+  @keyframes wishHand {
+    0%,100% { transform: translateZ(40px) rotate(-8deg) scale(1); }
+    50%     { transform: translateZ(70px) rotate(8deg)  scale(1.08); }
+  }
+
+  .wish-card h2 {
+    font-family: 'Bangers', cursive;
+    font-size: clamp(2rem, 5vw, 3rem);
+    color: var(--yellow);
+    letter-spacing: 2px;
+    margin-bottom: 1.5rem;
+  }
+
+  .wish-card p {
+    font-size: 1.15rem;
+    line-height: 1.8;
+    color: rgba(255,255,255,0.85);
+  }
+
+  .wish-card .from {
+    margin-top: 2rem;
+    font-size: 1rem;
+    color: var(--pink);
+    font-weight: 700;
+  }
+
+  footer {
+    text-align: center;
+    padding: 2rem;
+    color: rgba(255,255,255,0.2);
+    font-size: 0.85rem;
+    background: #0a0a1a;
+  }
+
+  /* Responsive tweaks */
+  @media (max-width: 720px) {
+    #tear-hud {
+      top: 10px;
+      max-width: calc(100vw - 100px);
+    }
+    #tear-hud .tear-pill {
+      font-size: 0.62rem;
+      padding: 6px 10px;
+      letter-spacing: 1.2px;
+    }
+    .tear-progress-wrap { width: 140px; height: 4px; }
+    #section-dots { bottom: 18px; gap: 6px; }
+    .dot { width: 6px; height: 6px; }
+    .dot.active { transform: scale(1.6); }
+    #skip-btn {
+      font-size: 0.62rem;
+      padding: 5px 9px;
+      top: 10px;
+      right: 8px;
+      letter-spacing: 1.2px;
+    }
+    #finger-hint { font-size: 2.4rem; }
+    .final-emoji { font-size: 3.5rem; }
+    #replay-btn { font-size: 1.15rem; padding: 12px 24px; }
+
+    /* Hero text smaller on phones */
+    .hero h1 { font-size: clamp(2.6rem, 14vw, 5.5rem); text-shadow: 3px 3px 0 var(--orange), 6px 6px 0 rgba(255,60,172,0.3); }
+    .hero-sub { font-size: 0.95rem; padding: 0 0.8rem; }
+    .hero-tag { font-size: 0.65rem; padding: 5px 14px; letter-spacing: 1.5px; }
+    .scroll-hint { font-size: 0.7rem; padding: 0 1rem; }
+
+    /* Section padding tighter */
+    .countdown-section, .roast-section, .photos-section, .wish-section,
+    .stg-section[style*="padding:5rem"] { padding: 3rem 1rem !important; }
+
+    .section-title { font-size: clamp(1.6rem, 6vw, 2.2rem); margin-bottom: 1.2rem; line-height: 1.2; }
+
+    .cd-box { padding: 1.2rem 1.5rem; min-width: 70px; }
+    .cd-box .num { font-size: clamp(2rem, 9vw, 3rem); }
+    .countdown-grid { gap: 0.6rem; }
+
+    .roast-card { padding: 1.2rem 1.4rem; margin-bottom: 1rem; }
+    .roast-card h3 { font-size: 1.3rem; }
+    .roast-card p { font-size: 0.92rem; }
+    .roast-card .roast-emoji { font-size: 2rem; right: 0.8rem; }
+
+    .watch-card { padding: 1rem; }
+    .watch-face { width: 90px; height: 90px; }
+    .watch-dial { width: 65px; height: 65px; }
+
+    .ittar-card { padding: 1.2rem; gap: 0.9rem; }
+    .ittar-bottle { font-size: 2rem; }
+
+    .day-box { padding: 0.6rem 0.3rem; }
+    .day-icon { font-size: 1.2rem; }
+    .day-label { font-size: 0.6rem; }
+
+    .wish-card { padding: 2rem 1.5rem; }
+    .wish-card h2 { font-size: 1.8rem; }
+    .wish-card p { font-size: 1rem; line-height: 1.6; }
+  }
+  @media (max-width: 480px) {
+    .hero h1 { font-size: clamp(2.2rem, 13vw, 4rem); }
+    .countdown-grid { flex-wrap: wrap; }
+    .cd-box { min-width: calc(50% - 0.6rem); }
+  }
+</style>
+</head>
+<body>
+
+<!-- 3D background depth field -->
+<div id="aurora"></div>
+<div id="star-field"></div>
+
+<!-- Tearing HUD -->
+<div id="tear-hud">
+  <div class="tear-pill"><span class="key">✋</span> Drag across the page to tear it</div>
+  <div class="tear-progress-wrap"><div class="tear-progress" id="tear-progress"></div></div>
+</div>
+
+<!-- Skip button -->
+<button id="skip-btn" type="button">Skip ✕</button>
+
+<!-- Section dots -->
+<div id="section-dots"></div>
+
+<!-- Finger hint -->
+<div id="finger-hint">👆</div>
+
+<!-- Confetti canvas -->
+<canvas id="confetti"></canvas>
+
+<!-- Cloth canvas overlay -->
+<canvas id="cloth-canvas"></canvas>
+
+<!-- Final card (replay button shown after wish section) -->
+<div id="final-card" class="hidden">
+  <div class="final-emoji">🎂</div>
+  <div class="final-title">That's a Wrap!</div>
+  <div class="final-sub">Happy Birthday Akbar 🫂</div>
+  <button id="replay-btn" type="button">Tear Again 🔁</button>
+</div>
+
+<!-- Stage with sections -->
+<main id="stage">
+
+  <!-- 1) HERO -->
+  <section class="stg-section hero" data-theme="0" data-title="The Birthday">
+    <span class="emoji-float" style="top:10%;left:5%;animation-delay:0s">🎂</span>
+    <span class="emoji-float" style="top:20%;right:8%;animation-delay:1s">🎉</span>
+    <span class="emoji-float" style="bottom:20%;left:10%;animation-delay:2s">🔥</span>
+    <span class="emoji-float" style="bottom:15%;right:5%;animation-delay:0.5s">🎈</span>
+    <span class="emoji-float" style="top:50%;left:3%;animation-delay:1.5s">⭐</span>
+
+    <div class="hero-tag">🚨 Breaking News Hai Re 🚨</div>
+    <h1>AKBAR<br/>BUDDHA HO GAYA!</h1>
+    <p class="hero-sub">
+      Arrey bhai, ek aur saal nikal gaya re. Duniya ne ek baar phir tujhse deal kiya. Kya scene hai — zinda rah gaya tu! Mubarak ho bidu! 🎊
+    </p>
+    <div class="scroll-hint">↓ Drag anywhere to tear this page open ↓</div>
+  </section>
+
+  <!-- 2) COUNTDOWN -->
+  <section class="stg-section countdown-section" data-theme="1" data-title="Countdown">
+    <h2 class="section-title" style="color:var(--pink)">⏰ Bade Din Ka Countdown Hai Re</h2>
+    <div class="countdown-grid" id="countdown-grid">
+      <div class="cd-box"><span class="num" id="cd-days">--</span><span class="label">Days</span></div>
+      <div class="cd-box"><span class="num" id="cd-hours">--</span><span class="label">Hours</span></div>
+      <div class="cd-box"><span class="num" id="cd-mins">--</span><span class="label">Minutes</span></div>
+      <div class="cd-box"><span class="num" id="cd-secs">--</span><span class="label">Seconds</span></div>
+    </div>
+    <p class="birthday-msg" id="bday-msg">🎉 ARREY AKBAR KA BIRTHDAY HAI RE AAJ! 🎉</p>
+  </section>
+
+  <!-- 3) ROAST -->
+  <section class="stg-section" data-theme="2" data-title="The Roast" style="padding:5rem 2rem;background:var(--dark);">
+    <div class="roast-section" style="padding:0">
+      <h2 class="section-title" style="text-align:center;margin-bottom:2.5rem">😂 Akbar Ki Official Roast — Seedha Dil Pe!</h2>
+
+      <div class="roast-card">
+        <span class="roast-emoji">💘</span>
+        <h3>Jhanvi Wala Scene</h3>
+        <p>
+          Akbar bhai... ek taraf ka pyaar hai re, kab se chal raha hai kisko pata. Tu Jhanvi ko aise dekhta hai jaise last piece biryani ko dekhte hain — pata hai apna nahi hai, phir bhi aankhein nahi hatati. Bidu, tere jaisa dedicated insaan duniya mein kam milega. Respect bhi hai, darr bhi hai. 😭
+        </p>
+      </div>
+
+      <div class="roast-card">
+        <span class="roast-emoji">🪞</span>
+        <h3>Aaine Wala Bhai</h3>
+        <p>
+          Yeh bhai subah uthta hai, aaine mein dekhta hai, aur bolega "Mashallah, kya scene hai." Phir poore 45 minute baal theek karta rehta hai. Dekhneka mein accha hai? Haan re. Pata hai usko? EKDUM PATA HAI. Bhai ke birthday party mein saare sheeshe chupaao warna hum log kabhi nahi niklenge. 💅
+        </p>
+      </div>
+
+      <div class="roast-card">
+        <span class="roast-emoji">🕌</span>
+        <h3>Islamic Aur Seedha Insaan Hai Re (sach mein 🤲)</h3>
+        <p>
+          Thoda serious — yeh bhai jitna discipline aur imaan rakhta hai na, bahut log nahi rakhtein bidu. Paanch waqt ki namaz, seedha character, genuine insaan hai yeh. Itni chaotic duniya mein Akbar full solid rehta hai. Yeh roast nahi hai, yeh facts hain. (Tension nahi, neeche aur roast hai 😂)
+        </p>
+      </div>
+
+      <div class="roast-card" style="border-color:var(--orange)">
+        <span class="roast-emoji">🚌</span>
+        <h3>Bus Bhai... Jab Tak Friday Nahi Aata</h3>
+        <p>
+          Monday se Thursday: "Arrey bhai bus aa gayi, chal niklo." Humble hai, grounded hai, public transport wala banda hai.
+          Lekin FRIDAY aate hi — bhai ek dum bike pe aata hai jaise kisi Bollywood film ka interval scene ho re.
+          Friday wala Akbar alag hi species hai bidu. Uske liye warning label chahiye. 🏍️🔥
+        </p>
+      </div>
+
+      <div class="roast-card" style="border-color:var(--yellow)">
+        <span class="roast-emoji">📖</span>
+        <h3>Open Book Wala Hairstyle</h3>
+        <p>
+          Bhai ke baal sirf baal nahi hain re — woh ek statement hai. Woh architecture hai. Open book jaisi shape hai kyunki apparently Akbar ke sar ne decide kiya educational banana hai khud ko. Scientists study kar rahe hain. NASA ne interest liya hai. Aerodynamics ke commitment ko hum salute karte hain. 📚💇
+        </p>
+      </div>
+
+      <div class="roast-card" style="border-color:var(--green)">
+        <span class="roast-emoji">🌹</span>
+        <h3>Ittar Ka Badshah Hai Re Galaxy Ka</h3>
+        <p>
+          Pata chal jaata hai Akbar aa gaya jab — kyunki suddenly poora room 1600s Persia ke royal garden jaisa smell karne lagta hai. Bhai deodorant nahi use karta, bhai <em>ittar</em> use karta hai. Yeh bande literally dua jaisi smell leke chalte hain. Respect hai bhai... lekin kitna lagaata hai re tu?? 😂🕌
+        </p>
+      </div>
+
+      <div class="roast-card" style="border-color:var(--blue)">
+        <span class="roast-emoji">⌚</span>
+        <h3>Ghadi Ka Connoisseur</h3>
+        <p>
+          Yeh bhai ghadi ke baare mein woh raay rakhta hai jo normal log life decisions ke baare mein rakhte hain. Tera wrist dekhega, halka sa saans lega, kuch nahi bolega — lekin TU JAANTA HAI. Akbar ka wrist game toh personality trait ban gaya hai bidu.
+          Ghadi, ittar, aur Friday bike energy — sab match hoti hai. Iconic insaan hai yaar. 🫡
+        </p>
+      </div>
+
+      <div class="roast-card" style="border-color:var(--orange)">
+        <span class="roast-emoji">🤲</span>
+        <h3>Poora Package Hai (Allegedly)</h3>
+        <p>
+          Dekhneka mein accha ✅ Grounded ✅ Islamic ✅ Ittar hamesha laga ✅ Ghadi game ekdum mast ✅
+          Baal physics ko challenge karte hain ✅ Friday bike mode ✅ Jhanvi pe ek taraf ka pyaar jo humse zyada zinda rahega ✅.
+          Akbar bhai, tu walking contradiction hai aur hum tujhse pyaar karte hain iske liye. Allah ke bande... Jhanvi ko abhi bhi nahi pata tu exist bhi karta hai. 😂❤️
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4) TRANSPORT TRACKER -->
+  <section class="stg-section" data-theme="3" data-title="Transport" style="padding:5rem 2rem;background:#0a0a1a;">
+    <h2 class="section-title" style="text-align:center;color:var(--orange);margin-bottom:0.5rem">🚌 Akbar Ka Transport Tracker Hai Re</h2>
+    <p style="text-align:center;color:rgba(255,255,255,0.4);margin-bottom:3rem;font-size:0.95rem">Certified Field Research se Powered™ — hum log peechhe the</p>
+
+    <div style="max-width:860px;margin:0 auto;">
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:0.5rem;margin-bottom:2.5rem;">
+        <div class="day-box" data-day="Mon" data-mode="bus" data-comment="Taqdeer qubool kar liya re.">
+          <div class="day-icon">🚌</div><div class="day-label">Som</div>
+        </div>
+        <div class="day-box" data-day="Tue" data-mode="bus" data-comment="Abhi bhi qubool kar raha hai.">
+          <div class="day-icon">🚌</div><div class="day-label">Man</div>
+        </div>
+        <div class="day-box" data-day="Wed" data-mode="bus" data-comment="Peak taqdeer acceptance chal raha hai.">
+          <div class="day-icon">🚌</div><div class="day-label">Budh</div>
+        </div>
+        <div class="day-box" data-day="Thu" data-mode="bus" data-comment="Ek aur raat baad glory milega re.">
+          <div class="day-icon">🚌</div><div class="day-label">Jum</div>
+        </div>
+        <div class="day-box bike" data-day="Fri" data-mode="bike" data-comment="Jhanvi dekh legi shayad. Inshallah.">
+          <div class="day-icon">🏍️</div><div class="day-label">Juma</div>
+        </div>
+        <div class="day-box" data-day="Sat" data-mode="home" data-comment="Friday ke baad recover ho raha hai bhai.">
+          <div class="day-icon">🛋️</div><div class="day-label">Sani</div>
+        </div>
+        <div class="day-box" data-day="Sun" data-mode="home" data-comment="Dua kar raha hai ki agli Friday kaam aaye.">
+          <div class="day-icon">🤲</div><div class="day-label">Itwar</div>
+        </div>
+      </div>
+
+      <div id="day-comment" style="text-align:center;font-size:1.1rem;color:rgba(255,255,255,0.5);margin-bottom:2.5rem;min-height:1.5em;font-style:italic;">← kisi din pe hover kar, sach pata chalega re</div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2.5rem;">
+        <div style="background:#16213e;border-radius:16px;padding:1.5rem;text-align:center;border:1px solid rgba(255,107,53,0.3)">
+          <div style="font-family:'Bangers',cursive;font-size:2.8rem;color:var(--orange)">4</div>
+          <div style="font-size:0.85rem;color:rgba(255,255,255,0.5);letter-spacing:1px;text-transform:uppercase;margin-top:4px">Bus Ke Din</div>
+          <div style="font-size:0.8rem;color:rgba(255,255,255,0.3);margin-top:6px">"Taqdeer qubool"</div>
+        </div>
+        <div style="background:#16213e;border-radius:16px;padding:1.5rem;text-align:center;border:1px solid rgba(255,60,172,0.5)">
+          <div style="font-family:'Bangers',cursive;font-size:2.8rem;color:var(--pink)">1</div>
+          <div style="font-size:0.85rem;color:rgba(255,255,255,0.5);letter-spacing:1px;text-transform:uppercase;margin-top:4px">Bike Ka Din (Juma)</div>
+          <div style="font-size:0.8rem;color:rgba(255,255,255,0.3);margin-top:6px">"Main character energy"</div>
+        </div>
+        <div style="background:#16213e;border-radius:16px;padding:1.5rem;text-align:center;border:1px solid rgba(6,214,160,0.3)">
+          <div style="font-family:'Bangers',cursive;font-size:2.8rem;color:var(--green)" id="prob-display">0.3%</div>
+          <div style="font-size:0.85rem;color:rgba(255,255,255,0.5);letter-spacing:1px;text-transform:uppercase;margin-top:4px">Jhanvi Usse Dekhegi</div>
+          <div style="font-size:0.8rem;color:rgba(255,255,255,0.3);margin-top:6px">"Optimistic estimate hai re"</div>
+        </div>
+      </div>
+
+      <div style="background:linear-gradient(135deg,#1a1a2e,#2d1b1a);border-radius:20px;padding:2rem;text-align:center;border:1px solid rgba(255,107,53,0.4);margin-bottom:2rem;">
+        <div style="font-size:0.85rem;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:0.75rem">⏳ Juma Bike Mode Tak Kitna Baacha Hai Re</div>
+        <div style="font-family:'Bangers',cursive;font-size:2.5rem;color:var(--orange)" id="friday-cd">Calculate ho raha hai...</div>
+        <div style="font-size:0.85rem;color:rgba(255,255,255,0.35);margin-top:0.5rem">Bas itna waqt bacha hai Akbar 14% aur handsome hone mein</div>
+      </div>
+
+      <div style="background:#16213e;border-radius:20px;padding:2rem;border-left:6px solid var(--yellow);">
+        <div style="font-family:'Bangers',cursive;font-size:1.8rem;color:var(--yellow);margin-bottom:1rem">🗺️ AI Route Optimization™ — Ekdum Free Mein</div>
+        <p style="color:rgba(255,255,255,0.8);line-height:1.8;margin-bottom:1rem">
+          Akbar ke commute patterns ka extensive analysis karke hamara algorithm yeh best route lekar aaya hai re:
+        </p>
+        <div style="background:#0f0f23;border-radius:12px;padding:1.25rem;font-family:monospace;font-size:0.9rem;color:var(--green);line-height:2;">
+          &gt; Akbar ke liye route optimization shuru ho raha hai...<br/>
+          &gt; Bus Route A check ho raha hai... <span style="color:rgba(255,255,255,0.4)">✓ Valid hai</span><br/>
+          &gt; Bike Route B check ho raha hai... <span style="color:rgba(255,255,255,0.4)">✓ Valid (sirf Juma ko)</span><br/>
+          &gt; Route C check ho raha hai: Seedha diwar mein ghus ja...<br/>
+          &gt; <span style="color:var(--orange)">⚠ RECOMMENDED</span> — Jhanvi ke notice karne jaisi hi probability hai.<br/>
+          &gt; Final verdict: <span style="color:var(--pink)">Saare raste ek hi jagah jaate hain: friendzone.</span><br/>
+          &gt; <span style="color:rgba(255,255,255,0.3)">// Ek kaam kar: confidently exist kar na bhai.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5) HALAL HARAM -->
+  <section class="stg-section" data-theme="4" data-title="Tribunal" style="padding:5rem 2rem;background:#0f0f1a;">
+    <h2 class="section-title" style="text-align:center;color:var(--green);margin-bottom:0.5rem">🕌 Halal/Haram Tribunal — Akbar Ki Adalat</h2>
+    <p style="text-align:center;color:rgba(255,255,255,0.4);margin-bottom:3rem;font-size:0.95rem">Akbar Ke Life Choices Ka Scholarly Review — Scholars Mein Bhi Hum Log Hain</p>
+
+    <div style="max-width:860px;margin:0 auto;display:grid;gap:1.5rem;">
+      <div style="background:#16213e;border-radius:20px;padding:2rem;border:1px solid rgba(6,214,160,0.3);">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+          <div style="font-family:'Bangers',cursive;font-size:2rem;color:var(--green)">😇 Sin Counter™</div>
+          <div style="background:rgba(6,214,160,0.1);border:1px solid rgba(6,214,160,0.4);border-radius:12px;padding:0.6rem 1.2rem;font-size:0.85rem;color:var(--green)">LIVE TRACKING</div>
+        </div>
+        <div style="display:grid;gap:1rem;">
+          <div style="background:#0f0f23;border-radius:12px;padding:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+            <div>
+              <div style="font-weight:700;color:rgba(255,255,255,0.9);margin-bottom:4px">Jhanvi ko dekhna</div>
+              <div style="font-size:0.85rem;color:rgba(255,255,255,0.4)">Dekhna technically halal hai. 47 minute ghurna — woh haram hai re bhai.</div>
+            </div>
+            <div style="font-family:'Bangers',cursive;font-size:2rem;color:var(--green)">HALAL*</div>
+          </div>
+          <div style="background:#0f0f23;border-radius:12px;padding:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+            <div>
+              <div style="font-weight:700;color:rgba(255,255,255,0.9);margin-bottom:4px">Copy ke margin mein uska naam likhna</div>
+              <div style="font-size:0.85rem;color:rgba(255,255,255,0.4)">Scholars divided hain re. Haram ki taraf lean kar raha hai.</div>
+            </div>
+            <div style="font-family:'Bangers',cursive;font-size:2rem;color:var(--orange)">GREY AREA</div>
+          </div>
+          <div style="background:#0f0f23;border-radius:12px;padding:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+            <div>
+              <div style="font-weight:700;color:rgba(255,255,255,0.9);margin-bottom:4px">Juma ko bike leke aana taaki woh dekhe</div>
+              <div style="font-size:0.85rem;color:rgba(255,255,255,0.4)">Niyyat se sab kuch decide hota hai bhai. Teri niyyat kya hai? 👀</div>
+            </div>
+            <div style="font-family:'Bangers',cursive;font-size:2rem;color:var(--pink)">SUSPECT 🚨</div>
+          </div>
+          <div style="background:#0f0f23;border-radius:12px;padding:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+            <div>
+              <div style="font-weight:700;color:rgba(255,255,255,0.9);margin-bottom:4px">Usse milne se pehle ittar lagaana</div>
+              <div style="font-size:0.85rem;color:rgba(255,255,255,0.4)">Ittar = sunnah hai ✅. Timing = suspicious hai re 🤔</div>
+            </div>
+            <div style="font-family:'Bangers',cursive;font-size:2rem;color:var(--yellow)">TECHNICALLY FINE</div>
+          </div>
+          <div style="font-size:0.75rem;color:rgba(255,255,255,0.25);text-align:right;margin-top:-0.5rem">*47 minute wala clause hamare concerned doston ki committee ne add kiya hai.</div>
+        </div>
+      </div>
+
+      <div style="background:#16213e;border-radius:20px;padding:2rem;border:2px solid var(--yellow);position:relative;overflow:hidden;">
+        <div style="position:absolute;top:0;right:0;width:120px;height:120px;background:var(--yellow);opacity:0.05;border-radius:50%;transform:translate(30%,-30%)"></div>
+        <div style="text-align:center;margin-bottom:1.5rem;">
+          <div style="font-size:0.8rem;letter-spacing:3px;text-transform:uppercase;color:rgba(255,214,0,0.6);margin-bottom:0.5rem">Official Certificate Of</div>
+          <div style="font-family:'Bangers',cursive;font-size:3rem;color:var(--yellow);letter-spacing:2px;line-height:1">SEEDHAPAN</div>
+          <div style="font-size:0.8rem;letter-spacing:2px;color:rgba(255,255,255,0.3);margin-top:0.25rem">Jaari kiya: Akbar Ke Doston Ki Supreme Council Ne</div>
+        </div>
+        <div style="background:#0f0f23;border-radius:12px;padding:1.5rem;text-align:center;margin-bottom:1rem;">
+          <p style="color:rgba(255,255,255,0.8);line-height:1.8;font-size:1rem;">
+            Yeh hereby certify karta hai ki <strong style="color:var(--yellow)">AKBAR</strong> officially
+            <strong style="color:var(--green)">SEEDHA</strong> hai — values wala, discipline wala, imaan wala banda.
+          </p>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+          <div style="background:#0f0f23;border-radius:10px;padding:1rem;text-align:center;">
+            <div style="font-size:1.5rem;margin-bottom:4px">🌍</div>
+            <div style="font-size:0.85rem;font-weight:700;color:rgba(255,255,255,0.8)">Grounded in Reality</div>
+            <div style="font-size:0.75rem;color:rgba(255,60,172,0.8);margin-top:4px">Debatable</div>
+          </div>
+          <div style="background:#0f0f23;border-radius:10px;padding:1rem;text-align:center;">
+            <div style="font-size:1.5rem;margin-bottom:4px">🤝</div>
+            <div style="font-size:0.85rem;font-weight:700;color:rgba(255,255,255,0.8)">Grounded in the Friendzone</div>
+            <div style="font-size:0.75rem;color:var(--green);margin-top:4px">CONFIRMED ✓</div>
+          </div>
+          <div style="background:#0f0f23;border-radius:10px;padding:1rem;text-align:center;">
+            <div style="font-size:1.5rem;margin-bottom:4px">🙏</div>
+            <div style="font-size:0.85rem;font-weight:700;color:rgba(255,255,255,0.8)">Grounded in Deen</div>
+            <div style="font-size:0.75rem;color:var(--green);margin-top:4px">CONFIRMED ✓</div>
+          </div>
+          <div style="background:#0f0f23;border-radius:10px;padding:1rem;text-align:center;">
+            <div style="font-size:1.5rem;margin-bottom:4px">❤️</div>
+            <div style="font-size:0.85rem;font-weight:700;color:rgba(255,255,255,0.8)">Grounded in Our Hearts</div>
+            <div style="font-size:0.75rem;color:var(--green);margin-top:4px">CONFIRMED ✓</div>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:1.5rem;font-size:0.75rem;color:rgba(255,255,255,0.2);">
+          * This certificate is valid until Jhanvi notices him, at which point all bets are off.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6) ITTAR & WATCHES -->
+  <section class="stg-section" data-theme="5" data-title="Ittar & Watches" style="padding:5rem 2rem;background:#070714;">
+    <div style="max-width:900px;margin:0 auto;">
+      <div style="text-align:center;margin-bottom:1rem;">
+        <div style="font-size:0.8rem;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:0.75rem">A Limited Edition Cultural Documentary</div>
+        <h2 class="section-title" style="color:var(--yellow);margin-bottom:0.25rem">Ittar &amp; Watches</h2>
+        <div style="font-family:'Bangers',cursive;font-size:1.6rem;color:rgba(255,214,0,0.4);letter-spacing:3px;margin-bottom:0.5rem">A TRAGEDY IN TWO ACTS</div>
+        <div style="width:60px;height:2px;background:var(--yellow);margin:0 auto 3rem;opacity:0.4;"></div>
+      </div>
+
+      <div style="margin-bottom:4rem;">
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:2rem;">
+          <div style="font-family:'Bangers',cursive;font-size:2.2rem;color:var(--yellow)">ACT I</div>
+          <div style="flex:1;height:1px;background:rgba(255,214,0,0.2);"></div>
+          <div style="font-size:1rem;color:rgba(255,255,255,0.5);letter-spacing:1px">⌚ THE COLLECTION</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.25rem;">
+          <div class="watch-card">
+            <div class="watch-face" style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);">
+              <div class="watch-dial" style="border-color:#c9a84c;">
+                <div class="watch-brand" style="color:#c9a84c;">ROLEX</div>
+                <div class="watch-hand hour" id="h1"></div>
+                <div class="watch-hand min" id="m1"></div>
+              </div>
+            </div>
+            <div class="watch-name">The Submariner Fantasy</div>
+            <div class="watch-price">₹10,00,000</div>
+            <div class="watch-caption">"Rolex vibes, bus pass budget." 🚌</div>
+            <div class="watch-verdict">TOUCHING GRASS: NEVER</div>
+          </div>
+
+          <div class="watch-card">
+            <div class="watch-face" style="background:linear-gradient(135deg,#0a1628,#162848);">
+              <div class="watch-dial" style="border-color:#a8c8f0;">
+                <div class="watch-brand" style="color:#a8c8f0;">AP</div>
+                <div class="watch-hand hour" id="h2"></div>
+                <div class="watch-hand min" id="m2"></div>
+              </div>
+            </div>
+            <div class="watch-name">Royal Oak Dreams</div>
+            <div class="watch-price">₹35,00,000</div>
+            <div class="watch-caption">"The only royal thing about Akbar's situation is how royally Jhanvi ignores him." 👑</div>
+            <div class="watch-verdict">BUDGET STATUS: CRITICAL</div>
+          </div>
+
+          <div class="watch-card">
+            <div class="watch-face" style="background:linear-gradient(135deg,#1a0a0a,#2d1010);">
+              <div class="watch-dial" style="border-color:#e8b4b8;">
+                <div class="watch-brand" style="color:#e8b4b8;">PP</div>
+                <div class="watch-hand hour" id="h3"></div>
+                <div class="watch-hand min" id="m3"></div>
+              </div>
+            </div>
+            <div class="watch-name">Patek Philippe Delusion</div>
+            <div class="watch-price">₹1,20,00,000</div>
+            <div class="watch-caption">"You don't own a Patek. A Patek owns you. Akbar owns neither." 😔</div>
+            <div class="watch-verdict">IN DREAMS ONLY</div>
+          </div>
+        </div>
+        <p style="text-align:center;color:rgba(255,255,255,0.25);font-size:0.8rem;margin-top:1.5rem;font-style:italic;">* Akbar's actual watch game is genuinely fire. We're just broke and jealous.</p>
+      </div>
+
+      <div>
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:2rem;">
+          <div style="font-family:'Bangers',cursive;font-size:2.2rem;color:var(--pink)">ACT II</div>
+          <div style="flex:1;height:1px;background:rgba(255,60,172,0.2);"></div>
+          <div style="font-size:1rem;color:rgba(255,255,255,0.5);letter-spacing:1px">🌹 THE ITTAR REVIEWS</div>
+        </div>
+
+        <div style="background:#100d1f;border-radius:20px;padding:2rem;border:1px solid rgba(255,60,172,0.2);margin-bottom:1.5rem;">
+          <div style="font-size:0.7rem;letter-spacing:3px;text-transform:uppercase;color:rgba(255,60,172,0.5);margin-bottom:0.5rem">Official Fragrance Review Blog · Est. 2026</div>
+          <div style="font-family:'Bangers',cursive;font-size:1.8rem;color:var(--pink);margin-bottom:0.25rem">AKBAR'S ITTAR DIARIES</div>
+          <div style="font-size:0.85rem;color:rgba(255,255,255,0.3)">Reviewed by: Concerned Friends Who Stand Downwind</div>
+        </div>
+
+        <div style="display:grid;gap:1rem;">
+          <div class="ittar-card">
+            <div class="ittar-bottle">🌹</div>
+            <div style="flex:1">
+              <div class="ittar-name">Oud Al-Obsession</div>
+              <div class="ittar-desc">"Deep, woody, with top notes of unrequited hope and a finish of bus exhaust. Applied generously at 7am. Appreciated by zero Jhanvis."</div>
+              <div class="ittar-stats">
+                <div class="ittar-stat"><span class="stat-label">Jhanvi Detection Radius</span><span class="stat-val danger">0 meters</span></div>
+                <div class="ittar-stat"><span class="stat-label">Aunties Impressed</span><span class="stat-val good">12 meters</span></div>
+                <div class="ittar-stat"><span class="stat-label">Confidence Added</span><span class="stat-val mid">+47%</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ittar-card">
+            <div class="ittar-bottle">🌸</div>
+            <div style="flex:1">
+              <div class="ittar-name">Rose of Denial</div>
+              <div class="ittar-desc">"Floral, romantic, delusional. Notes of dried petals and touching grass. Pairs well with: bike rides on Fridays, open-book hairstyles, and dreams."</div>
+              <div class="ittar-stats">
+                <div class="ittar-stat"><span class="stat-label">Jhanvi Detection Radius</span><span class="stat-val danger">0 meters</span></div>
+                <div class="ittar-stat"><span class="stat-label">Masjid Approval Rating</span><span class="stat-val good">100%</span></div>
+                <div class="ittar-stat"><span class="stat-label">Plot Advancement</span><span class="stat-val danger">None</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ittar-card">
+            <div class="ittar-bottle">🌿</div>
+            <div style="flex:1">
+              <div class="ittar-name">Musk of the Friendzone</div>
+              <div class="ittar-desc">"A signature scent. Complex. Layered. Tragic. The drydown is mostly suppressed sighs and unanswered duas about a certain someone."</div>
+              <div class="ittar-stats">
+                <div class="ittar-stat"><span class="stat-label">Jhanvi Detection Radius</span><span class="stat-val danger">0 meters</span></div>
+                <div class="ittar-stat"><span class="stat-label">Self Esteem Maintained</span><span class="stat-val good">✓ Somehow</span></div>
+                <div class="ittar-stat"><span class="stat-label">Our Respect for Him</span><span class="stat-val good">∞</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:2.5rem;background:linear-gradient(135deg,rgba(255,60,172,0.08),rgba(255,214,0,0.05));border-radius:20px;padding:2.5rem;border:1px solid rgba(255,255,255,0.08);text-align:center;">
+          <div style="font-size:2.5rem;margin-bottom:1rem">📜</div>
+          <div style="font-family:'Bangers',cursive;font-size:1.4rem;color:rgba(255,255,255,0.3);letter-spacing:2px;margin-bottom:1.5rem">EPILOGUE</div>
+          <p style="font-size:1.25rem;line-height:1.9;color:rgba(255,255,255,0.85);max-width:600px;margin:0 auto;">
+            He smells like a million bucks.<br/>
+            <span style="color:rgba(255,255,255,0.45)">She smells nothing.</span><br/>
+            <span style="color:rgba(255,255,255,0.25);font-size:1rem;">Because she's not there.</span>
+          </p>
+          <div style="margin-top:2rem;font-size:0.8rem;color:rgba(255,255,255,0.2);font-style:italic;">
+            — Act II, Scene ∞ · Curtain never falls · Running since forever
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7) PHOTOS -->
+  <section class="stg-section photos-section" data-theme="6" data-title="Memories">
+    <h2 class="section-title">📸 Memories with the Birthday Boy</h2>
+    <div class="photo-grid" id="photo-grid">
+      <div class="photo-placeholder" onclick="document.getElementById('upload-1').click()">
+        <span class="ph-emoji">📷</span>
+        <span>Add a Photo</span>
+        <input type="file" id="upload-1" accept="image/*" style="display:none" onchange="loadPhoto(this,0)"/>
+      </div>
+      <div class="photo-placeholder" onclick="document.getElementById('upload-2').click()">
+        <span class="ph-emoji">🤳</span>
+        <span>Add a Photo</span>
+        <input type="file" id="upload-2" accept="image/*" style="display:none" onchange="loadPhoto(this,1)"/>
+      </div>
+      <div class="photo-placeholder" onclick="document.getElementById('upload-3').click()">
+        <span class="ph-emoji">🎉</span>
+        <span>Add a Photo</span>
+        <input type="file" id="upload-3" accept="image/*" style="display:none" onchange="loadPhoto(this,2)"/>
+      </div>
+      <div class="photo-placeholder" onclick="document.getElementById('upload-4').click()">
+        <span class="ph-emoji">🔥</span>
+        <span>Add a Photo</span>
+        <input type="file" id="upload-4" accept="image/*" style="display:none" onchange="loadPhoto(this,3)"/>
+      </div>
+    </div>
+    <p class="upload-hint">Click on each box to add your favourite photos of Akbar 📸</p>
+  </section>
+
+  <!-- 8) WISH -->
+  <section class="stg-section wish-section" data-theme="7" data-title="The Wish" data-final="true">
+    <div class="wish-card">
+      <span class="wish-emoji">🤝</span>
+      <h2>From the Bottom of My Heart</h2>
+      <p>
+        Jokes aside bhai — you're one of a kind. Your faith keeps you grounded, your character keeps you real,
+        and your heart keeps you genuine. I'm lucky to have a friend like you. May this year bring you everything
+        you deserve — happiness, success, health, and maybe... just maybe... Jhanvi notices you. 😂❤️
+        <br/><br/>
+        Happy Birthday Akbar! Keep being you. The world is a better place with you in it. 🎂
+      </p>
+      <p class="from">— Your Best Friend 🫂</p>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ================================================================
+   BIRTHDAY · TEARABLE WRAPPING-PAPER ENGINE
+   ----------------------------------------------------------------
+   Each section is "wrapped" by a Verlet-physics cloth canvas.
+   Drag/swipe to tear. Once enough constraints are broken,
+   the cloth falls away and the "Next Gift" button appears.
+   Sections are stacked but only one is visible at a time.
+   ================================================================ */
+
+(function () {
+  /* -------------------- ELEMENTS -------------------- */
+  const sections      = Array.from(document.querySelectorAll('.stg-section'));
+  const dotsWrap      = document.getElementById('section-dots');
+  const tearHud       = document.getElementById('tear-hud');
+  const tearProgress  = document.getElementById('tear-progress');
+  const finalCard     = document.getElementById('final-card');
+  const skipBtn       = document.getElementById('skip-btn');
+  const fingerHint    = document.getElementById('finger-hint');
+  const clothCanvas   = document.getElementById('cloth-canvas');
+  const starField     = document.getElementById('star-field');
+
+  /* -------------------- 3D STAR FIELD -------------------- */
+  function spawnStars() {
+    if (!starField) return;
+    starField.innerHTML = '';
+    const W = window.innerWidth, H = window.innerHeight;
+    const isMobile = W < 720;
+    const N = isMobile ? 28 : 60;
+    const colors = ['', ' s-yellow', ' s-pink', ' s-cyan', ' s-purple'];
+    for (let i = 0; i < N; i++) {
+      const s = document.createElement('div');
+      const colorCls = colors[Math.floor(Math.random() * colors.length)];
+      s.className = 'star' + colorCls;
+      const size = 1.5 + Math.random() * 3.5;
+      s.style.width  = size + 'px';
+      s.style.height = size + 'px';
+      const sx = (Math.random() - 0.5) * W * 1.4;
+      const sy = (Math.random() - 0.5) * H * 1.4;
+      const ex = sx + (Math.random() - 0.5) * 200;
+      const ey = sy + (Math.random() - 0.5) * 200;
+      s.style.left  = '50%';
+      s.style.top   = '50%';
+      s.style.setProperty('--sx', sx + 'px');
+      s.style.setProperty('--sy', sy + 'px');
+      s.style.setProperty('--ex', ex + 'px');
+      s.style.setProperty('--ey', ey + 'px');
+      s.style.setProperty('--so', (0.4 + Math.random() * 0.6).toFixed(2));
+      const dur = 14 + Math.random() * 18;
+      const delay = -Math.random() * dur;
+      s.style.animation = `starDrift ${dur}s linear ${delay}s infinite`;
+      starField.appendChild(s);
+    }
+  }
+  spawnStars();
+  let starsResizeT = null;
+  window.addEventListener('resize', () => {
+    if (starsResizeT) clearTimeout(starsResizeT);
+    starsResizeT = setTimeout(spawnStars, 250);
+  });
+
+  /* -------------------- MOUSE-FOLLOW 3D TILT -------------------- */
+  // Subtle parallax on the cloth canvas so the page feels physically 3D.
+  // While intact, the cloth tilts toward the cursor (like fabric being grabbed).
+  let mouseTiltX = 0, mouseTiltY = 0, mouseTiltCurX = 0, mouseTiltCurY = 0;
+  let tiltRAF = null;
+  function applyMouseTilt() {
+    mouseTiltCurX += (mouseTiltX - mouseTiltCurX) * 0.08;
+    mouseTiltCurY += (mouseTiltY - mouseTiltCurY) * 0.08;
+    if (clothCanvas && !clothCanvas.classList.contains('falling') && !clothCanvas.classList.contains('gone')) {
+      clothCanvas.style.transform =
+        'perspective(1400px) rotateX(' + (mouseTiltCurY * -2.5).toFixed(2) + 'deg)' +
+        ' rotateY(' + (mouseTiltCurX * 2.5).toFixed(2) + 'deg)' +
+        ' translateZ(0)';
+    }
+    if (Math.abs(mouseTiltX - mouseTiltCurX) > 0.005 || Math.abs(mouseTiltY - mouseTiltCurY) > 0.005) {
+      tiltRAF = requestAnimationFrame(applyMouseTilt);
+    } else {
+      tiltRAF = null;
+    }
+  }
+  window.addEventListener('pointermove', (e) => {
+    const W = window.innerWidth, H = window.innerHeight;
+    mouseTiltX = (e.clientX / W - 0.5);
+    mouseTiltY = (e.clientY / H - 0.5);
+    if (!tiltRAF) tiltRAF = requestAnimationFrame(applyMouseTilt);
+  }, { passive: true });
+
+  /* -------------------- DOTS -------------------- */
+  sections.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    dotsWrap.appendChild(d);
+  });
+  const dots = Array.from(dotsWrap.children);
+
+  function setDots(i) {
+    dots.forEach((d, idx) => {
+      d.classList.toggle('active', idx === i);
+      d.classList.toggle('done', idx < i);
+    });
+  }
+
+  /* -------------------- CLOTH SIM (Verlet) -------------------- */
+  class Cloth {
+    constructor(canvas, texture, onTorn) {
+      this.canvas = canvas;
+      this.ctx = canvas.getContext('2d', { alpha: true });
+      this.texture = texture;            // HTMLCanvasElement / HTMLImageElement
+      this.texW = texture ? texture.width  : 0;
+      this.texH = texture ? texture.height : 0;
+      this.onTorn = onTorn;
+
+      // Tunables (tighter cloth on mobile for performance, larger touch zones)
+      const isMobile = window.innerWidth < 720 || ('ontouchstart' in window && window.innerWidth < 900);
+      this.spacing       = isMobile ? 42 : 32;
+      this.tearDist      = this.spacing * 2.4;
+      this.mouseRadius   = isMobile ? 50 : 38;
+      this.sliceRadius   = isMobile ? 44 : 32;
+      this.gravity       = 0.22;
+      this.friction      = 0.99;
+      this.iterations    = 3;
+      this.tearThreshold = 0.06;   // 6% broken => fall
+      this.fadeAfter     = 700;    // ms after torn before button shows
+
+      // Mouse / pointer state
+      this.mouse = { x: -1e6, y: -1e6, px: -1e6, py: -1e6, down: false };
+
+      // Lifecycle flags
+      this.tornFired = false;
+      this.fallen    = false;
+      this.opacity   = 1;
+      this.alive     = true;
+      this.fallenSince = 0;
+
+      // Build grid
+      this._build();
+
+      // Bind events (pointer-based, supports touch & mouse)
+      this._bind();
+
+      // Kick off animation
+      this._loop = this._loop.bind(this);
+      requestAnimationFrame(this._loop);
+    }
+
+    _build() {
+      this.canvas.width  = window.innerWidth  * (window.devicePixelRatio || 1);
+      this.canvas.height = window.innerHeight * (window.devicePixelRatio || 1);
+      this.canvas.style.width  = window.innerWidth + 'px';
+      this.canvas.style.height = window.innerHeight + 'px';
+      this.dpr = window.devicePixelRatio || 1;
+
+      const cssW = window.innerWidth, cssH = window.innerHeight;
+      const visH = Math.min(cssH, document.documentElement.clientHeight || cssH);
+
+      // Cloth covers the FULL viewport from (0,0) to (cssW, cssH)
+      const cols = Math.floor(cssW / this.spacing) + 1;
+      const rows = Math.floor(visH / this.spacing) + 2;
+      const startX = 0;
+      const startY = 0;
+
+      // Compute exact step so cloth fits viewport exactly
+      const stepX = cssW / (cols - 1);
+      const stepY = visH / (rows - 2);
+
+      this.cols = cols; this.rows = rows;
+      this.viewW = cssW; this.viewH = visH;
+      this.points = new Array(cols * rows);
+
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const px = startX + x * stepX;
+          const py = startY + y * stepY;
+          // UV in source image — clamp to texture extent
+          const u = (this.texW > 0) ? Math.max(0, Math.min(this.texW, (x / (cols - 1)) * this.texW)) : 0;
+          const v = (this.texH > 0) ? Math.max(0, Math.min(this.texH, (y / (rows - 2)) * this.texH)) : 0;
+          this.points[y * cols + x] = {
+            x: px, y: py, px: px, py: py,
+            ox: px, oy: py,
+            u: u,  v: v,
+            pinned: y === 0,
+            free: false
+          };
+        }
+      }
+
+      // Constraints (right + down)
+      this.constraints = [];
+      const restX = stepX, restY = stepY;
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const i = y * cols + x;
+          const p = this.points[i];
+          if (x > 0) this.constraints.push({ a: this.points[i - 1],    b: p, len: restX, broken: false });
+          if (y > 0) this.constraints.push({ a: this.points[i - cols], b: p, len: restY, broken: false });
+        }
+      }
+      this.totalC   = this.constraints.length;
+      this.brokenC  = 0;
+      this.stepX = stepX;
+      this.stepY = stepY;
+    }
+
+    _bind() {
+      const c = this.canvas;
+      const setPos = (clientX, clientY) => {
+        const rect = c.getBoundingClientRect();
+        this.mouse.px = this.mouse.x;
+        this.mouse.py = this.mouse.y;
+        this.mouse.x  = clientX - rect.left;
+        this.mouse.y  = clientY - rect.top;
+      };
+      const onDown = (e) => {
+        if (!this.alive || this.fallen) return;
+        this.mouse.down = true;
+        const t = (e.touches && e.touches[0]) || e;
+        setPos(t.clientX, t.clientY);
+        this.mouse.px = this.mouse.x;
+        this.mouse.py = this.mouse.y;
+        if (fingerHint) fingerHint.classList.add('hide');
+        e.preventDefault();
+      };
+      const onMove = (e) => {
+        if (!this.alive) return;
+        const t = (e.touches && e.touches[0]) || e;
+        setPos(t.clientX, t.clientY);
+        if (this.mouse.down) e.preventDefault();
+      };
+      const onUp = () => {
+        if (!this.alive) return;
+        this.mouse.down = false;
+      };
+
+      this._events = { onDown, onMove, onUp };
+      // pointerdown on canvas only (must start tear on cloth)
+      c.addEventListener('pointerdown', onDown, { passive: false });
+      // move + up listeners on window so capture isn't lost when cursor leaves canvas
+      window.addEventListener('pointermove',   onMove, { passive: false });
+      window.addEventListener('pointerup',     onUp,   { passive: false });
+      window.addEventListener('pointercancel', onUp,   { passive: false });
+    }
+
+    _unbind() {
+      const c = this.canvas;
+      const { onDown, onMove, onUp } = this._events || {};
+      if (!onDown) return;
+      c.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove',   onMove);
+      window.removeEventListener('pointerup',     onUp);
+      window.removeEventListener('pointercancel', onUp);
+      this.mouse.down = false;
+    }
+
+    _physics() {
+      const I = this.iterations;
+      const radius2 = this.mouseRadius * this.mouseRadius;
+      const sliceR2 = this.sliceRadius * this.sliceRadius;
+
+      // Direct slicing: if mouse moved while down, break any constraint whose
+      // midpoint lies within sliceRadius of the cursor segment. This makes
+      // tearing feel responsive even with fast pointer motion.
+      if (this.mouse.down && !this.fallen) {
+        const x1 = this.mouse.px, y1 = this.mouse.py;
+        const x2 = this.mouse.x,  y2 = this.mouse.y;
+        const dxs = x2 - x1, dys = y2 - y1;
+        const segLen2 = dxs * dxs + dys * dys;
+        const cs = this.constraints;
+
+        if (segLen2 > 0.5 || true) {
+          for (let i = 0; i < cs.length; i++) {
+            const c = cs[i];
+            if (c.broken) continue;
+            const mx = (c.a.x + c.b.x) * 0.5;
+            const my = (c.a.y + c.b.y) * 0.5;
+
+            // distance from mid-point to the cursor segment
+            let dist2;
+            if (segLen2 < 1) {
+              const ddx = mx - x2, ddy = my - y2;
+              dist2 = ddx * ddx + ddy * ddy;
+            } else {
+              const t = Math.max(0, Math.min(1, ((mx - x1) * dxs + (my - y1) * dys) / segLen2));
+              const px = x1 + t * dxs;
+              const py = y1 + t * dys;
+              const ddx = mx - px, ddy = my - py;
+              dist2 = ddx * ddx + ddy * ddy;
+            }
+            if (dist2 < sliceR2) {
+              c.broken = true;
+              this.brokenC++;
+            }
+          }
+        }
+      }
+
+      for (let it = 0; it < I; it++) {
+        // Mouse "push" influence (drags points like fabric being grabbed)
+        if (this.mouse.down && !this.fallen) {
+          const dx = this.mouse.x - this.mouse.px;
+          const dy = this.mouse.y - this.mouse.py;
+          const speed2 = dx * dx + dy * dy;
+          const scale = speed2 > 1600 ? 40 / Math.sqrt(speed2) : 1;
+          const ddx = dx * scale, ddy = dy * scale;
+
+          for (let i = 0; i < this.points.length; i++) {
+            const p = this.points[i];
+            const ax = p.x - this.mouse.x;
+            const ay = p.y - this.mouse.y;
+            if (ax * ax + ay * ay < radius2) {
+              p.px = p.x - ddx * 1.2;
+              p.py = p.y - ddy * 1.2;
+            }
+          }
+        }
+
+        // Resolve constraints
+        const cs = this.constraints;
+        for (let i = 0; i < cs.length; i++) {
+          const c = cs[i];
+          if (c.broken) continue;
+          const dx = c.b.x - c.a.x;
+          const dy = c.b.y - c.a.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 0.0001;
+
+          if (dist > this.tearDist) {
+            c.broken = true;
+            this.brokenC++;
+            continue;
+          }
+          const diff = (c.len - dist) / dist * 0.5;
+          const ox = dx * diff;
+          const oy = dy * diff;
+          if (!c.a.pinned) { c.a.x -= ox; c.a.y -= oy; }
+          if (!c.b.pinned) { c.b.x += ox; c.b.y += oy; }
+        }
+      }
+
+      // Verlet integration
+      const grav = this.fallen ? this.gravity * 1.6 : this.gravity;
+      const fr = this.friction;
+      for (let i = 0; i < this.points.length; i++) {
+        const p = this.points[i];
+        if (p.pinned) continue;
+        const vx = (p.x - p.px) * fr;
+        const vy = (p.y - p.py) * fr;
+        p.px = p.x;
+        p.py = p.y;
+        p.x += vx;
+        p.y += vy + grav;
+        // Soft side bounds
+        if (p.x < -120) p.x = -120;
+        if (p.x > window.innerWidth + 120) p.x = window.innerWidth + 120;
+      }
+
+      // Check tear threshold:
+      //  - constraints explicitly broken (slicing), OR
+      //  - many points that ORIGINATED on-screen have fallen well below viewport
+      let escaped = 0;
+      const offScreen = window.innerHeight + 80;
+      const inScreen = window.innerHeight;
+      for (let i = 0; i < this.points.length; i++) {
+        const p = this.points[i];
+        if (p.y > offScreen && p.oy <= inScreen) escaped++;
+      }
+      const escapeRatio = escaped / Math.max(1, this.points.length);
+      const breakRatio  = this.brokenC / Math.max(1, this.totalC);
+      const torn = Math.max(breakRatio / this.tearThreshold, escapeRatio / 0.18);
+
+      if (!this.tornFired && torn >= 1) {
+        this._fireTorn();
+      }
+
+      // Update progress bar (combined metric)
+      tearProgress.style.width = Math.min(100, torn * 100) + '%';
+    }
+
+    _fireTorn() {
+      this.tornFired = true;
+      this.fallen = true;
+      this.fallenSince = performance.now();
+      // Unpin everything to drop dramatically
+      for (let i = 0; i < this.points.length; i++) this.points[i].pinned = false;
+      this.canvas.style.cursor = 'default';
+      // Apply 3D fall transform (clear inline tilt so .falling CSS wins)
+      this.canvas.style.transform = '';
+      this.canvas.classList.add('falling');
+      // Hide HUD
+      tearHud.classList.add('hide');
+      if (fingerHint) fingerHint.classList.add('hide');
+      // Notify
+      if (this.onTorn) this.onTorn();
+    }
+
+    _drawTexTri(p1, p2, p3) {
+      const ctx = this.ctx;
+      const tex = this.texture;
+      if (!tex) return;
+      const dpr = this.dpr;
+
+      // Destination triangle (in CSS px), source UVs (in texture px)
+      const x1 = p1.x, y1 = p1.y, u1 = p1.u, v1 = p1.v;
+      const x2 = p2.x, y2 = p2.y, u2 = p2.u, v2 = p2.v;
+      const x3 = p3.x, y3 = p3.y, u3 = p3.u, v3 = p3.v;
+
+      // Affine map (u,v) -> (x,y)
+      const dU1 = u2 - u1, dV1 = v2 - v1;
+      const dU2 = u3 - u1, dV2 = v3 - v1;
+      const dX1 = x2 - x1, dY1 = y2 - y1;
+      const dX2 = x3 - x1, dY2 = y3 - y1;
+
+      const det = dU1 * dV2 - dU2 * dV1;
+      if (det === 0) return;
+      const inv = 1 / det;
+
+      const a =  ( dX1 * dV2 - dX2 * dV1) * inv;
+      const c =  (-dX1 * dU2 + dX2 * dU1) * inv;
+      const b =  ( dY1 * dV2 - dY2 * dV1) * inv;
+      const d =  (-dY1 * dU2 + dY2 * dU1) * inv;
+      const e = x1 - a * u1 - c * v1;
+      const f = y1 - b * u1 - d * v1;
+
+      // Slightly expand the clip triangle outward from its centroid
+      // so adjacent triangles overlap and hide hairline seams.
+      const cx = (x1 + x2 + x3) / 3;
+      const cy = (y1 + y2 + y3) / 3;
+      const SEAM = 0.6;
+      const d1 = Math.hypot(x1 - cx, y1 - cy) || 1;
+      const d2 = Math.hypot(x2 - cx, y2 - cy) || 1;
+      const d3 = Math.hypot(x3 - cx, y3 - cy) || 1;
+      const ex1 = x1 + (x1 - cx) * SEAM / d1;
+      const ey1 = y1 + (y1 - cy) * SEAM / d1;
+      const ex2 = x2 + (x2 - cx) * SEAM / d2;
+      const ey2 = y2 + (y2 - cy) * SEAM / d2;
+      const ex3 = x3 + (x3 - cx) * SEAM / d3;
+      const ey3 = y3 + (y3 - cy) * SEAM / d3;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(ex1, ey1);
+      ctx.lineTo(ex2, ey2);
+      ctx.lineTo(ex3, ey3);
+      ctx.closePath();
+      ctx.clip();
+      // Bake DPR into the transform so we draw in CSS-px space
+      ctx.setTransform(a * dpr, b * dpr, c * dpr, d * dpr, e * dpr, f * dpr);
+      ctx.drawImage(tex, 0, 0);
+      ctx.restore();
+    }
+
+    _draw() {
+      const ctx = this.ctx;
+      const dpr = this.dpr;
+      // Reset transform & clear
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.globalAlpha = this.opacity;
+
+      const cols = this.cols, rows = this.rows;
+      const pts = this.points;
+      const TD2 = this.tearDist * this.tearDist;
+
+      // Render each cell as 2 textured triangles, skipping cells whose edges
+      // have been torn beyond tearDist (cleanly excluded so it looks ripped)
+      for (let y = 0; y < rows - 1; y++) {
+        for (let x = 0; x < cols - 1; x++) {
+          const tl = pts[y * cols + x];
+          const tr = pts[y * cols + x + 1];
+          const bl = pts[(y + 1) * cols + x];
+          const br = pts[(y + 1) * cols + x + 1];
+
+          const e1 = (tr.x - tl.x) * (tr.x - tl.x) + (tr.y - tl.y) * (tr.y - tl.y);
+          const e2 = (bl.x - tl.x) * (bl.x - tl.x) + (bl.y - tl.y) * (bl.y - tl.y);
+          const e3 = (br.x - tr.x) * (br.x - tr.x) + (br.y - tr.y) * (br.y - tr.y);
+          const e4 = (br.x - bl.x) * (br.x - bl.x) + (br.y - bl.y) * (br.y - bl.y);
+          if (e1 > TD2 || e2 > TD2 || e3 > TD2 || e4 > TD2) continue;
+
+          // Two triangles: tl-tr-br and tl-br-bl
+          this._drawTexTri(tl, tr, br);
+          this._drawTexTri(tl, br, bl);
+        }
+      }
+
+      // Reset transform for any further drawing
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.globalAlpha = 1;
+    }
+
+    _loop(t) {
+      if (!this.alive) return;
+      this._physics();
+      this._draw();
+
+      // Fade-out logic after fall
+      if (this.fallen) {
+        const elapsed = performance.now() - this.fallenSince;
+        if (elapsed > this.fadeAfter) {
+          this.opacity *= 0.93;
+          if (this.opacity < 0.02) {
+            this.opacity = 0;
+            this.alive = false;
+            this.canvas.classList.add('gone');
+            if (this.onGone) this.onGone();
+            return;
+          }
+        }
+      }
+      requestAnimationFrame(this._loop);
+    }
+
+    destroy() {
+      this.alive = false;
+      this._unbind();
+      const ctx = this.ctx;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+  }
+
+  /* -------------------- ORCHESTRATOR (with html2canvas snapshot) -------------------- */
+  let current = 0;
+  let cloth = null;
+  let busy = false;
+  let firstSection = true;
+
+  // Layered visibility manager:
+  //   sections[i] === "front"  -> the section being displayed/captured (will become cloth)
+  //   sections[i+1] === "below" -> peeking through behind the cloth as it tears
+  //   all others hidden
+  function _layoutForSection(i) {
+    sections.forEach((s, idx) => {
+      s.classList.remove('below', 'front', 'live');
+    });
+    if (i + 1 < sections.length) {
+      sections[i + 1].classList.add('below');
+    }
+    sections[i].classList.add('front');
+  }
+
+  async function _captureSection(section) {
+    // Wait two frames for layout/styles to apply
+    await new Promise(r => requestAnimationFrame(() => r()));
+    await new Promise(r => requestAnimationFrame(() => r()));
+    try {
+      const isMobile = window.innerWidth < 720;
+      const cnv = await html2canvas(section, {
+        backgroundColor: '#1a1a2e',
+        useCORS: true,
+        logging: false,
+        // Lower scale on mobile for faster capture & less memory
+        scale: isMobile ? 0.5 : Math.max(0.55, Math.min(1, 1280 / window.innerWidth)),
+        width: window.innerWidth,
+        height: window.innerHeight,
+        windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0
+      });
+      return cnv;
+    } catch (e) {
+      console.warn('[cloth] html2canvas failed', e);
+      return null;
+    }
+  }
+
+  async function showSection(i) {
+    if (busy) return;
+    busy = true;
+    setDots(i);
+
+    finalCard.classList.add('hidden');
+    tearHud.classList.remove('hide');
+    tearProgress.style.width = '0%';
+
+    // Stack: section i visible (front), section i+1 visible (below), others hidden
+    _layoutForSection(i);
+
+    // Capture the section content as a canvas texture
+    const tex = await _captureSection(sections[i]);
+
+    // Hide the front section now — its image is baked into the cloth
+    sections[i].classList.remove('front');
+
+    // Reset cloth canvas
+    clothCanvas.style.display = 'block';
+    clothCanvas.style.opacity = '1';
+    clothCanvas.style.transform = '';
+    clothCanvas.classList.remove('gone');
+    clothCanvas.classList.remove('falling');
+
+    // Spawn cloth
+    if (cloth) { cloth.destroy(); cloth = null; }
+    cloth = new Cloth(clothCanvas, tex, () => onTorn(i));
+    cloth.onGone = () => {
+      // After cloth is fully gone, the next section is now visible behind.
+      // Briefly let the user see it, then auto-advance.
+      const next = i + 1 < sections.length ? sections[i + 1] : null;
+      if (next) {
+        next.classList.remove('below');
+        next.classList.add('live');
+      }
+      _autoAdvance(i);
+    };
+
+    if (firstSection) {
+      fingerHint.classList.remove('hide');
+      firstSection = false;
+    } else {
+      fingerHint.classList.add('hide');
+    }
+
+    setTimeout(() => { busy = false; }, 350);
+  }
+
+  function onTorn(i) {
+    // Cloth was torn enough — fall + fade in progress.
+    // Auto-advance to the next section once the cloth is fully gone (handled in onGone).
+    // Trigger confetti on the very last (wish) section.
+    if (i === sections.length - 1) {
+      try { window.launchConfetti && window.launchConfetti(); } catch (e) {}
+    }
+  }
+
+  async function _autoAdvance(fromIdx) {
+    if (fromIdx >= sections.length - 1) {
+      // We're on the final (wish) section — show "Tear again 🔁" pill instead of looping
+      finalCard.classList.remove('hidden');
+      return;
+    }
+    // Brief moment so user can see the revealed section before it becomes cloth again
+    await new Promise(r => setTimeout(r, 850));
+    current = fromIdx + 1;
+    await showSection(current);
+  }
+
+  // Replay button (only visible on final section)
+  document.getElementById('replay-btn').addEventListener('click', async () => {
+    finalCard.classList.add('hidden');
+    current = 0;
+    await showSection(current);
+  });
+
+  skipBtn.addEventListener('click', () => {
+    if (cloth) cloth._fireTorn();
+  });
+
+  /* -------------------- RESIZE -------------------- */
+  let resizeT = null;
+  window.addEventListener('resize', () => {
+    if (resizeT) clearTimeout(resizeT);
+    resizeT = setTimeout(async () => {
+      // Re-snapshot + rebuild current cloth on resize for clean grid
+      if (cloth && cloth.alive && !cloth.fallen) {
+        const tex = await _captureSection(sections[current]);
+        cloth.destroy();
+        cloth = new Cloth(clothCanvas, tex, () => onTorn(current));
+      }
+      const cc = document.getElementById('confetti');
+      if (cc) { cc.width = window.innerWidth; cc.height = window.innerHeight; }
+    }, 200);
+  });
+
+  /* -------------------- BOOT -------------------- */
+  // Defer first cloth slightly so the section under it paints first
+  setTimeout(() => showSection(0), 60);
+
+  // Expose for debug
+  window.__BD = { showSection, get cloth() { return cloth; } };
+})();
+
+/* ===============================================================
+   ORIGINAL FEATURES — preserved
+   =============================================================== */
+
+// WATCH HANDS - live time
+function setWatchHands() {
+  const now = new Date();
+  const h = now.getHours() % 12, m = now.getMinutes(), s = now.getSeconds();
+  const hDeg = h * 30 + m * 0.5;
+  const mDeg = m * 6 + s * 0.1;
+  [1,2,3].forEach(i => {
+    const hEl = document.getElementById('h'+i);
+    const mEl = document.getElementById('m'+i);
+    if(hEl) hEl.style.transform = `rotate(${hDeg}deg)`;
+    if(mEl) mEl.style.transform = `rotate(${mDeg}deg)`;
+  });
+}
+setWatchHands();
+setInterval(setWatchHands, 1000);
+
+// DAY HOVER
+document.querySelectorAll('.day-box').forEach(box => {
+  box.addEventListener('mouseenter', () => {
+    const dc = document.getElementById('day-comment');
+    if (!dc) return;
+    dc.textContent = (box.dataset.mode === 'bike' ? '🏍️ FRIDAY MODE: ' : '🚌 ') + box.dataset.comment;
+  });
+  box.addEventListener('mouseleave', () => {
+    const dc = document.getElementById('day-comment');
+    if (!dc) return;
+    dc.textContent = '← hover a day to reveal the truth';
+  });
+});
+
+// FRIDAY COUNTDOWN
+function nextFriday() {
+  const now = new Date();
+  const day = now.getDay();
+  const daysUntil = (5 - day + 7) % 7 || 7;
+  const friday = new Date(now);
+  friday.setDate(now.getDate() + daysUntil);
+  friday.setHours(0,0,0,0);
+  return friday;
+}
+function updateFridayCd() {
+  const el = document.getElementById('friday-cd');
+  if (!el) return;
+  const diff = nextFriday() - new Date();
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  if (new Date().getDay() === 5) {
+    el.textContent = '🏍️ IT IS FRIDAY. BIKE MODE ACTIVATED.';
+    el.style.color = 'var(--pink)';
+  } else {
+    el.textContent = `${d}d ${h}h ${m}m ${s}s`;
+  }
+}
+updateFridayCd();
+setInterval(updateFridayCd, 1000);
+
+// COUNTDOWN
+const birthday = new Date('2026-05-10T00:00:00');
+function updateCountdown() {
+  const now = new Date();
+  const diff = birthday - now;
+  if (diff <= 0) {
+    const grid = document.getElementById('countdown-grid');
+    const msg  = document.getElementById('bday-msg');
+    if (grid) grid.style.display = 'none';
+    if (msg)  msg.style.display = 'block';
+    if (window.launchConfetti) window.launchConfetti();
+    return;
+  }
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  const $ = id => document.getElementById(id);
+  if ($('cd-days'))  $('cd-days').textContent  = String(d).padStart(2,'0');
+  if ($('cd-hours')) $('cd-hours').textContent = String(h).padStart(2,'0');
+  if ($('cd-mins'))  $('cd-mins').textContent  = String(m).padStart(2,'0');
+  if ($('cd-secs'))  $('cd-secs').textContent  = String(s).padStart(2,'0');
+}
+updateCountdown();
+setInterval(updateCountdown, 1000);
+
+// PHOTOS
+function loadPhoto(input, idx) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const placeholders = document.querySelectorAll('.photo-placeholder');
+    const el = placeholders[idx];
+    el.querySelector('.ph-emoji').style.display = 'none';
+    el.querySelectorAll('span:not(.ph-emoji)').forEach(s => s.style.display = 'none');
+    const img = document.createElement('img');
+    img.src = e.target.result;
+    el.appendChild(img);
+  };
+  reader.readAsDataURL(file);
+}
+window.loadPhoto = loadPhoto;
+
+// CONFETTI
+const confettiCanvas = document.getElementById('confetti');
+const cctx = confettiCanvas.getContext('2d');
+let confettiParticles = [];
+let confettiRunning = false;
+
+function resizeConfetti() {
+  confettiCanvas.width  = window.innerWidth;
+  confettiCanvas.height = window.innerHeight;
+}
+resizeConfetti();
+window.addEventListener('resize', resizeConfetti);
+
+function launchConfetti() {
+  if (confettiRunning) return;
+  confettiRunning = true;
+  for (let i = 0; i < 220; i++) {
+    confettiParticles.push({
+      x: Math.random() * confettiCanvas.width,
+      y: Math.random() * confettiCanvas.height - confettiCanvas.height,
+      w: Math.random() * 12 + 4,
+      h: Math.random() * 6 + 3,
+      color: ['#FFD600','#FF3CAC','#FF6B35','#06D6A0','#118AB2','#fff'][Math.floor(Math.random()*6)],
+      vx: (Math.random() - 0.5) * 3,
+      vy: Math.random() * 3 + 1,
+      angle: Math.random() * 360,
+      spin: (Math.random() - 0.5) * 6
+    });
+  }
+  animateConfetti();
+}
+window.launchConfetti = launchConfetti;
+
+function animateConfetti() {
+  cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+  for (let i = confettiParticles.length - 1; i >= 0; i--) {
+    const p = confettiParticles[i];
+    cctx.save();
+    cctx.translate(p.x + p.w/2, p.y + p.h/2);
+    cctx.rotate(p.angle * Math.PI / 180);
+    cctx.fillStyle = p.color;
+    cctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+    cctx.restore();
+    p.x += p.vx;
+    p.y += p.vy;
+    p.angle += p.spin;
+    if (p.y > confettiCanvas.height + 20) confettiParticles.splice(i, 1);
+  }
+  if (confettiParticles.length > 0) requestAnimationFrame(animateConfetti);
+  else confettiRunning = false;
+}
+</script>
+</body>
+</html>
